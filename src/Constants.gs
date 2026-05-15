@@ -8,11 +8,14 @@
  *   - Default Config rows (SCHEMA §6)
  *   - Default email HTML templates (SPEC §7)
  *
- * Loaded as a global at script start. Schema.gs and every later slice
- * read from these tables instead of redeclaring values.
+ * Apps Script V8 gotcha: top-level `const` / `let` declarations are
+ * scoped to the declaring .gs file and are NOT visible in other files.
+ * Only `var` and `function` declarations become true cross-file
+ * globals. Every constant below is `var` on purpose so Schema.gs,
+ * Audit.gs, Auth.gs, etc. can reference them.
  */
 
-const TZ = 'Asia/Manila'; // UTC+8 year-round. Per SPEC §2.2 datetime fields.
+var TZ = 'Asia/Manila'; // UTC+8 year-round. Per SPEC §2.2 datetime fields.
 
 /**
  * 23 payroll types per SPEC §0.4. Order is canonical; row N of this
@@ -21,7 +24,7 @@ const TZ = 'Asia/Manila'; // UTC+8 year-round. Per SPEC §2.2 datetime fields.
  * Quincena_Mode = YES only for PBP / COS (SPEC §0.5 Mode 2).
  * Hold_Allowed  = YES only for PBP / COS (SPEC §5.1).
  */
-const PAYROLL_TYPES = [
+var PAYROLL_TYPES = [
   { name: 'RATA',                                code: 'RT',     quincenaMode: false, holdAllowed: false },
   { name: 'Communication Expenses',              code: 'CE',     quincenaMode: false, holdAllowed: false },
   { name: 'Regular Payroll – Plantilla',    code: 'PBP',    quincenaMode: true,  holdAllowed: true  },
@@ -47,7 +50,7 @@ const PAYROLL_TYPES = [
   { name: 'Token',                               code: 'TOKEN',  quincenaMode: false, holdAllowed: false },
 ];
 
-const BATCH_STATUSES = [
+var BATCH_STATUSES = [
   'Draft',
   'Pending Approval',
   'Bank Processing',
@@ -61,24 +64,24 @@ const BATCH_STATUSES = [
   'Cancelled',
 ];
 
-const HELD_RECORD_STATUSES = ['OPEN', 'RELEASING', 'RELEASED', 'CANCELLED'];
+var HELD_RECORD_STATUSES = ['OPEN', 'RELEASING', 'RELEASED', 'CANCELLED'];
 
-const USER_ROLES = ['Maker', 'Admin', 'Accounting'];
-const USER_STATUSES = ['Active', 'Disabled'];
+var USER_ROLES = ['Maker', 'Admin', 'Accounting'];
+var USER_STATUSES = ['Active', 'Disabled'];
 
-const OUTBOUND_EMAIL_QUEUE_STATUSES = ['QUEUED', 'SENDING', 'SENT', 'FAILED'];
+var OUTBOUND_EMAIL_QUEUE_STATUSES = ['QUEUED', 'SENDING', 'SENT', 'FAILED'];
 
-const HRIS_PENDING_CHANGE_ACTIONS = ['ADD', 'MODIFY', 'REMOVE'];
-const HRIS_PENDING_CHANGE_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'AUTO_APPROVED'];
+var HRIS_PENDING_CHANGE_ACTIONS = ['ADD', 'MODIFY', 'REMOVE'];
+var HRIS_PENDING_CHANGE_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'AUTO_APPROVED'];
 
-const YES_NO = ['YES', 'NO'];
+var YES_NO = ['YES', 'NO'];
 
 /**
  * Canonical audit action names. SCHEMA §B is the spec; this array is
- * the runtime mirror. Slice 1's Audit.gs will validate every emitted
- * action against this list.
+ * the runtime mirror. Audit.gs validates every emitted action against
+ * this list.
  */
-const CANONICAL_AUDIT_ACTIONS = [
+var CANONICAL_AUDIT_ACTIONS = [
   'LOGIN_SUCCESS',
   'LOGIN_FAILURE',
   'BATCH_CREATED',
@@ -117,7 +120,7 @@ const CANONICAL_AUDIT_ACTIONS = [
  * accent bar (SPEC §7). Seeded into Config.emailHeaderHtml so branding
  * edits don't require code changes.
  */
-const EMAIL_HEADER_HTML =
+var EMAIL_HEADER_HTML =
   '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#1C2790;border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;">' +
     '<tr>' +
       '<td style="padding:18px 24px;color:#FFFFFF;font-size:18px;font-weight:bold;letter-spacing:0.5px;">' +
@@ -129,7 +132,7 @@ const EMAIL_HEADER_HTML =
     '</tr>' +
   '</table>';
 
-const EMAIL_FOOTER_HTML =
+var EMAIL_FOOTER_HTML =
   '<div style="margin-top:24px;border-top:3px solid #CDAE2C;padding-top:12px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#666666;">' +
     'This is an automated message from the DAP ComBen E-Payment system. Do not reply to this email.' +
   '</div>';
@@ -138,8 +141,8 @@ const EMAIL_FOOTER_HTML =
  * Generic payee notification body template. Admin replaces per type via
  * the Payroll_Types sheet (SCHEMA §3) — same Mustache placeholders.
  */
-const DEFAULT_NOTIFICATION_SUBJECT = '[DAP] {{payroll_type}} for {{period}}';
-const DEFAULT_NOTIFICATION_BODY =
+var DEFAULT_NOTIFICATION_SUBJECT = '[DAP] {{payroll_type}} for {{period}}';
+var DEFAULT_NOTIFICATION_BODY =
   '<p>Dear {{payee_name}},</p>' +
   '<p>Your {{payroll_type}} for the period {{period}} has been credited to your Landbank account.</p>' +
   '<p><strong>Amount:</strong> PHP {{amount}}<br>' +
@@ -153,7 +156,7 @@ const DEFAULT_NOTIFICATION_BODY =
  * overwritten. The token itself for treasuryBridgeTokenScriptProp
  * is stored in Script Properties, not in this sheet (SPEC §15).
  */
-const CONFIG_DEFAULTS = [
+var CONFIG_DEFAULTS = [
   { setting: 'combenDriveRootFolderId',              value: '',                                                                          notes: 'Drive folder ID for the ComBen root tree. Admin fills after creating the folder and sharing with Maker/Admin emails.' },
   { setting: 'archiveFolderId',                      value: '',                                                                          notes: '_archive/ subfolder for cold audit log JSONL exports. Admin fills.' },
   { setting: 'treasuryBridgeUrl',                    value: '',                                                                          notes: 'URL of the Treasury bridge web app (SPEC §15). Admin fills once Treasury deploys.' },
