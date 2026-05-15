@@ -18,8 +18,8 @@ Two transport patterns are used:
 
 | Pattern | When | Example |
 |---|---|---|
-| `google.script.run.<fn>(args)` | Default for all interactive actions | `google.script.run.batch_submit({batch_no:'04APBP26'})` |
-| `doGet(e)` HTTP route | File downloads, PDF preview, public OAuth callbacks if any | `?route=download&kind=findes&batch=04APBP26` |
+| `google.script.run.<fn>(args)` | Default for all interactive actions | `google.script.run.batch_submit({batch_no:'04AAPB26'})` |
+| `doGet(e)` HTTP route | File downloads, PDF preview, public OAuth callbacks if any | `?route=download&kind=findes&batch=04AAPB26` |
 
 Default is `google.script.run`. HTTP routes are listed explicitly in
 §F.
@@ -108,7 +108,7 @@ Create a new batch from the upload form (Phase 1).
   "client_request_id": "<uuid>",
   "payroll_type": "Regular Payroll – Plantilla",
   "period_covered": "April 1-15, 2026",
-  "batch_letter": "A",
+  "batch_letter_pair": "AA",
   "year_yy": "26",
   "month_mm": "04",
   "payroll_file_blob_id": "<temp Drive ID of uploaded xlsx>",
@@ -118,9 +118,11 @@ Create a new batch from the upload form (Phase 1).
 
 **Behavior:**
 1. Validate `payroll_type` against `Payroll_Types`.
-2. Validate `batch_letter` against §0.5 (must be `A`/`B` for
-   `Quincena_Mode=YES` types; sequential next for others).
-3. Compute `Batch_No = mm + L + CODE + yy`.
+2. Validate `batch_letter_pair` against §0.5 (must be `AA`/`BA` for
+   `Quincena_Mode=YES` types; auto-suggested sequential `[letter]A`
+   for others). Second letter must be `A` — sub-batches go through
+   `sub_batch_create` (§B.15).
+3. Compute `Batch_No = mm + LL + CC + yy` (8 chars).
 4. Parse the uploaded xlsx into the line-items array. For each row:
    - Pad `HRIS_ID` to 6.
    - Look up canonical record via Treasury bridge.
@@ -136,7 +138,7 @@ Create a new batch from the upload form (Phase 1).
 
 ```json
 {
-  "batch_no": "04APBP26",
+  "batch_no": "04AAPB26",
   "line_items_count": 372,
   "active_count": 372,
   "errors_count": 0,
@@ -160,7 +162,7 @@ by the M&E surface — SPEC §13).
 | State precondition | batch exists |
 | Audit action | `BATCH_REVIEW_OPENED` (first open per session only) |
 
-**Input:** `{ "batch_no": "04APBP26" }`
+**Input:** `{ "batch_no": "04AAPB26" }`
 
 **Behavior:**
 1. Load batch head row.
@@ -210,7 +212,7 @@ by the M&E surface — SPEC §13).
 
 ### B.3 `row_hold`
 
-Mark a single row HOLD (Phase 2). PBP/COS only.
+Mark a single row HOLD (Phase 2). PB/CS only.
 
 | | |
 |---|---|
@@ -220,7 +222,7 @@ Mark a single row HOLD (Phase 2). PBP/COS only.
 
 **Input:**
 ```json
-{ "batch_no": "04APBP26", "row_index": 17, "hold_reason": "No DTR submitted as of cut-off" }
+{ "batch_no": "04AAPB26", "row_index": 17, "hold_reason": "No DTR submitted as of cut-off" }
 ```
 
 **Behavior:**
@@ -244,7 +246,7 @@ Reverse a hold before Submit.
 | State precondition | `Status = Draft`, row currently `HOLD` |
 | Audit action | `ROW_UNHELD` |
 
-**Input:** `{ "batch_no": "04APBP26", "row_index": 17 }`
+**Input:** `{ "batch_no": "04AAPB26", "row_index": 17 }`
 
 ---
 
@@ -260,7 +262,7 @@ Mark many rows HOLD in one transaction.
 **Input:**
 ```json
 {
-  "batch_no": "04APBP26",
+  "batch_no": "04AAPB26",
   "rows": [{"row_index": 17, "hold_reason": "..."}, ...]
 }
 ```
@@ -279,7 +281,7 @@ Submit the batch for approval (Phase 2 → Phase 3).
 | Audit action | `BATCH_SUBMITTED`, `FINDES_GENERATED`, `AUTHORIZER_EMAIL_SENT` |
 | Idempotent | yes |
 
-**Input:** `{ "batch_no": "04APBP26", "client_request_id": "<uuid>" }`
+**Input:** `{ "batch_no": "04AAPB26", "client_request_id": "<uuid>" }`
 
 **Behavior:**
 1. Validate gate (errors=0, totals match).
@@ -302,7 +304,7 @@ created.
 | Audit action | `FINDES_GENERATED` |
 | Idempotent | yes (overwrites with .bak per SPEC §10.9) |
 
-**Input:** `{ "batch_no": "04APBP26" }`
+**Input:** `{ "batch_no": "04AAPB26" }`
 
 **Behavior:** Full FINDES per SPEC §10 — sanity stop, padding,
 name cleaning, idempotent save.
@@ -320,7 +322,7 @@ Mark that the FINDES has been uploaded to WeAccess (Phase 5 — external).
 | State postcondition | `Status = Bank Processing` |
 | Audit action | `BATCH_SUBMITTED` (variant `WEACCESS_UPLOADED` — add to canonical list) |
 
-**Input:** `{ "batch_no": "04APBP26", "weaccess_note": "Uploaded 9:42 AM" }`
+**Input:** `{ "batch_no": "04AAPB26", "weaccess_note": "Uploaded 9:42 AM" }`
 
 > **Note for SCHEMA §B canonical actions:** add `WEACCESS_UPLOADED`.
 
@@ -338,7 +340,7 @@ Upload the Landbank Credit Memo xlsx (Phase 6 entry).
 
 **Input:**
 ```json
-{ "batch_no": "04APBP26", "cm_blob_id": "<temp Drive ID>" }
+{ "batch_no": "04AAPB26", "cm_blob_id": "<temp Drive ID>" }
 ```
 
 **Behavior:**
@@ -396,7 +398,7 @@ Acknowledge a single CM exception with a justification note.
 
 **Input:**
 ```json
-{ "batch_no": "04APBP26", "row_index": 17, "match_kind": "NOT_IN_CM", "note": "Bank rejected — wrong branch. Will reissue." }
+{ "batch_no": "04AAPB26", "row_index": 17, "match_kind": "NOT_IN_CM", "note": "Bank rejected — wrong branch. Will reissue." }
 ```
 
 ---
@@ -412,7 +414,7 @@ Confirm Phase 6 — gate to Phase 7.
 | State postcondition | `Status = Bank-Confirmed`; line-items rows updated with bank_status; notification queue populated |
 | Audit action | `CM_CONFIRMED`, `NOTIFICATION_QUEUED` (one per CONFIRMED row) |
 
-**Input:** `{ "batch_no": "04APBP26", "client_request_id": "<uuid>" }`
+**Input:** `{ "batch_no": "04AAPB26", "client_request_id": "<uuid>" }`
 
 **Behavior:**
 1. Validate all exceptions are acked.
@@ -436,7 +438,7 @@ Generate the Annex H PDF (Phase 8).
 | State postcondition | `Status = Annex H Generated` |
 | Audit action | `ANNEX_H_GENERATED` |
 
-**Input:** `{ "batch_no": "04APBP26" }`
+**Input:** `{ "batch_no": "04AAPB26" }`
 
 **Behavior:**
 1. Reserve next `Annex H Report No.` for the month via LockService
@@ -459,7 +461,7 @@ Send Phase 9 handoff email.
 | Audit action | `ACCOUNTING_HANDOFF_SENT` |
 | Idempotent | yes |
 
-**Input:** `{ "batch_no": "04APBP26", "client_request_id": "<uuid>" }`
+**Input:** `{ "batch_no": "04AAPB26", "client_request_id": "<uuid>" }`
 
 ---
 
@@ -477,7 +479,7 @@ Create a hold-release sub-batch.
 **Input:**
 ```json
 {
-  "parent_batch_no": "04APBP26",
+  "parent_batch_no": "04AAPB26",
   "row_indexes_to_release": [17, 42],
   "client_request_id": "<uuid>"
 }
@@ -693,7 +695,7 @@ Cancel a batch in `Draft` or `Pending Approval`.
 | State postcondition | `Status = Cancelled` |
 | Audit action | `BATCH_CANCELLED` |
 
-**Input:** `{ "batch_no": "04APBP26", "reason": "..." }`
+**Input:** `{ "batch_no": "04AAPB26", "reason": "..." }`
 
 > **Note for SCHEMA §B canonical actions:** add `BATCH_CANCELLED`.
 

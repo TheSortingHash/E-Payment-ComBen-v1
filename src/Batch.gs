@@ -17,7 +17,7 @@
  * "STATE: batch already exists" once the head row is in place.
  */
 
-const _BATCH_LETTER_QUINCENA = ['A', 'B'];
+const _BATCH_LETTER_PAIR_QUINCENA = ['AA', 'BA'];
 
 function _findPayrollTypeByName(name) {
   for (let i = 0; i < PAYROLL_TYPES.length; i++) {
@@ -27,32 +27,36 @@ function _findPayrollTypeByName(name) {
 }
 
 /**
- * Suggest the next batch letter for (month, payroll-type-code) in the
- * given year sheet (SPEC §0.5). PBP/COS use mode 2 (A=1st quincena,
- * B=2nd); all others sequential. Walks A, B, C, … and returns the
- * first letter not already in use for the (month, type) pair.
+ * Suggest the next parent batch letter pair for (month, payroll-type-code)
+ * in the given year sheet (SPEC §0.5). Parent batches always have
+ * second letter 'A' — the first letter is what cycles. For PB/CS
+ * Mode 2, only 'AA' (Q1) and 'BA' (Q2) are valid parents. For all
+ * other (Mode 1) types, walks A, B, C, ... and returns the first
+ * first-letter not already used as a parent for the (month, type).
  */
-function _suggestBatchLetter(year, mm, payrollTypeCode) {
+function _suggestBatchLetterPair(year, mm, payrollTypeCode) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('Master_Payroll_Batches_' + year);
-  if (!sheet) return 'A';
+  if (!sheet) return 'AA';
   const lastRow = sheet.getLastRow();
-  if (lastRow < 2) return 'A';
+  if (lastRow < 2) return 'AA';
   const data = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
-  const used = new Set();
+  const usedFirstLetters = new Set();
   for (let i = 0; i < data.length; i++) {
     const bn = String(data[i][0]);
-    const m = bn.match(/^(\d{2})([A-Z])([A-Z]{2,5})(\d{2})$/);
+    const m = bn.match(/^(\d{2})([A-Z])([A-Z])([A-Z]{2})(\d{2})$/);
     if (!m) continue;
     if (m[1] !== mm) continue;
-    if (m[3] !== payrollTypeCode) continue;
-    used.add(m[2]);
+    if (m[4] !== payrollTypeCode) continue;
+    // Only count parent batches (second letter 'A'); sub-batches
+    // share their parent's first letter.
+    if (m[3] === 'A') usedFirstLetters.add(m[2]);
   }
   for (let c = 65; c <= 90; c++) {
     const letter = String.fromCharCode(c);
-    if (!used.has(letter)) return letter;
+    if (!usedFirstLetters.has(letter)) return letter + 'A';
   }
-  return 'Z';
+  return 'ZA';
 }
 
 /**
@@ -60,10 +64,14 @@ function _suggestBatchLetter(year, mm, payrollTypeCode) {
  * each row against Payee_Database, writes LINE_ITEMS JSON to Drive,
  * inserts the batch head row with Status = Draft.
  *
+ * batch_create makes parent batches only (second letter of LL = 'A').
+ * Hold-release sub-batches go through sub_batch_create (Slice 11).
+ *
  * @param {object} args
  *   payroll_type:        string (name from PAYROLL_TYPES)
  *   period_covered:      string  (free text, e.g. "April 1-15, 2026")
- *   batch_letter:        string  optional — auto-suggested if omitted
+ *   batch_letter_pair:   string  optional 2 uppercase letters; auto-
+ *                                suggested if omitted. Must end in 'A'.
  *   year_yy:             string  optional 2-digit; defaults to current
  *   month_mm:            string  optional 2-digit; defaults to current
  *   payroll_file_id:     string  Drive file ID of the uploaded xlsx
@@ -87,19 +95,25 @@ function batch_create(args) {
   const monthInt = parseInt(mm, 10);
   if (monthInt < 1 || monthInt > 12) throw new Error('VALIDATION: month_mm out of range');
 
-  let letter = String(args.batch_letter || '').toUpperCase();
-  if (!letter) {
-    letter = _suggestBatchLetter('20' + yy, mm, ptObj.code);
-  } else if (!/^[A-Z]$/.test(letter)) {
-    throw new Error('VALIDATION: batch_letter must be a single uppercase letter');
+  let letterPair = String(args.batch_letter_pair || '').toUpperCase();
+  if (!letterPair) {
+    letterPair = _suggestBatchLetterPair('20' + yy, mm, ptObj.code);
+  } else if (!/^[A-Z]{2}$/.test(letterPair)) {
+    throw new Error('VALIDATION: batch_letter_pair must be exactly two uppercase letters');
   }
-  if (ptObj.quincenaMode && _BATCH_LETTER_QUINCENA.indexOf(letter) === -1) {
+  if (letterPair.charAt(1) !== 'A') {
     throw new Error(
-      'VALIDATION: ' + ptObj.name + ' is quincena-keyed (A=1st, B=2nd); got "' + letter + '"'
+      'VALIDATION: batch_create makes parent batches only (second letter must be "A"); ' +
+      'got "' + letterPair + '". Use sub_batch_create for hold-release sub-batches.'
+    );
+  }
+  if (ptObj.quincenaMode && _BATCH_LETTER_PAIR_QUINCENA.indexOf(letterPair) === -1) {
+    throw new Error(
+      'VALIDATION: ' + ptObj.name + ' is quincena-keyed (AA=1st, BA=2nd); got "' + letterPair + '"'
     );
   }
 
-  const batchNo = mm + letter + ptObj.code + yy;
+  const batchNo = mm + letterPair + ptObj.code + yy;
 
   if (!args.payroll_file_id) throw new Error('VALIDATION: payroll_file_id is required');
 

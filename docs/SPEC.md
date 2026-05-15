@@ -69,68 +69,81 @@ not resolve to a numeric (post-padding) value in `Payee_Database`.
 
 ### 0.4 Canonical payroll types and batch codes — **LOCKED**
 
-Batch number format: `[mm][L][CODE][yy]`
+Batch number format: `[mm][LL][CC][yy]` — **exactly 8 characters**.
 
 - `[mm]` — 2-digit month (`01`–`12`)
-- `[L]`  — batch letter (§0.5)
-- `[CODE]` — payroll-type code from the table below
+- `[LL]` — 2-letter batch sequence (§0.5)
+- `[CC]` — 2-char payroll-type code from the table below
 - `[yy]` — 2-digit year
+
+The 8-character total is mandated by Landbank's FINDES upload portal
+(WeAccess), which rejects FINDES CSVs whose base filename exceeds
+8 characters. Every payroll-type code is therefore exactly 2 chars,
+and the batch sequence is always a letter pair (§0.5).
 
 | # | Payroll Type | Code |
 |---|---|---|
 | 1 | RATA | RT |
 | 2 | Communication Expenses | CE |
-| 3 | Regular Payroll – Plantilla | PBP |
-| 4 | Regular Payroll – COS | COS |
-| 5 | Monetization | MON |
-| 6 | Loyalty Pay | LOYA |
+| 3 | Regular Payroll – Plantilla | PB |
+| 4 | Regular Payroll – COS | CS |
+| 5 | Monetization | MN |
+| 6 | Loyalty Pay | LY |
 | 7 | Step Increment Differential | SI |
-| 8 | Promotion Differential | PRO |
-| 9 | RATA OIC | RTOIC |
+| 8 | Promotion Differential | PR |
+| 9 | RATA OIC | RO |
 | 10 | Service Charge | SC |
-| 11 | Mid Year Bonus | MYB |
-| 12 | Year End Bonus and Cash Gift | YEBCG |
-| 13 | Productivity Enhancement Incentive | PEI |
-| 14 | Service Recognition Incentive | SRI |
-| 15 | Performance Based Bonus | PBB |
-| 16 | Loan Refund | REF |
-| 17 | Landbank Loan Refund | LBP |
-| 18 | Overtime Payroll – Plantilla | PBPOT |
-| 19 | Overtime Payroll – COS | COSOT |
-| 20 | Differential – COS | COSDIF |
-| 21 | Differential – PBP | DIFF |
-| 22 | Gratuity Pay | GRA |
-| 23 | Token | TOKEN |
+| 11 | Mid Year Bonus | MY |
+| 12 | Year End Bonus and Cash Gift | YE |
+| 13 | Productivity Enhancement Incentive | PE |
+| 14 | Service Recognition Incentive | SR |
+| 15 | Performance Based Bonus | BB |
+| 16 | Loan Refund | RF |
+| 17 | Landbank Loan Refund | LB |
+| 18 | Overtime Payroll – Plantilla | OT |
+| 19 | Overtime Payroll – COS | OC |
+| 20 | Differential – COS | DC |
+| 21 | Differential – PBP | DP |
+| 22 | Gratuity Pay | GP |
+| 23 | Token | TK |
 
 23 types total. (The earlier v1 template's INSTRUCTIONS sheet said "22"
 — that was a typo; this list is canonical.)
 
-**COSDIF carries a batch letter** like every other type. (The
-naming-convention sheet omitted it; confirmed typo.)
+**DC (Differential – COS) carries a batch letter pair** like every
+other type. (The naming-convention sheet omitted it; confirmed typo.)
 
 ### 0.5 Batch-letter convention — **LOCKED**
 
-The batch letter `[L]` resets to `A` at the start of each month for
-each payroll type, scoped to `(month, payroll-type)`.
+The batch sequence `[LL]` is a **2-letter pair**. The first letter
+identifies the parent batch series; the second letter is `A` for the
+parent batch itself and advances `B`, `C`, `D`, … for each
+hold-release sub-batch under that parent (§5.3).
 
-**Mode 1 — Sequential (applies to all types except PBP and COS):**
-First batch of the month = `A`; subsequent batches the same month =
-`B`, `C`, …
+The pair resets at the start of each month for each payroll type,
+scoped to `(month, payroll-type)`.
 
-**Mode 2 — Quincena-keyed (applies to PBP and COS only):**
-- `A` = 1st Quincena (first-half-of-month payroll).
-- `B` = 2nd Quincena (second-half-of-month payroll).
-- **Sub-batches (hold release):** see §5. Format pending reconciliation
-  between two answers given during planning — see `OPEN_ITEMS.md` #C1.
+**Mode 1 — Sequential (applies to all types except PB and CS):**
+First parent of the month uses first letter `A` → `AA`. Subsequent
+parents the same month: `BA`, `CA`, `DA`, … Sub-batches of `AA` are
+`AB`, `AC`, …; sub-batches of `BA` are `BB`, `BC`, …
 
-The system auto-suggests the next letter at batch creation time based
-on existing batches in `Master_Payroll_Batches` for the same `(month,
-payroll-type)`. Maker may override; Admin approval for any override
-that breaks monotonic sequence.
+**Mode 2 — Quincena-keyed (applies to PB and CS only):**
+- `AA` = 1st Quincena parent (first-half-of-month payroll).
+- `BA` = 2nd Quincena parent (second-half-of-month payroll).
+- Sub-batches of `AA` are `AB`, `AC`, …; sub-batches of `BA` are
+  `BB`, `BC`, … (see §5.3).
 
-**Open:** do PBPOT, COSOT, COSDIF, DIFF follow Mode 1 or Mode 2 of
-their parents? **Resolved: Mode 1 (sequential).** Only the strict
-quincena payrolls (PBP, COS themselves) use Mode 2.
+The system auto-suggests the next parent letter pair at batch
+creation time based on existing parent batches in
+`Master_Payroll_Batches` for the same `(month, payroll-type)`. Maker
+may override; Admin approval for any override that breaks monotonic
+sequence.
+
+**Resolved during planning:** do OT, OC, DC, DP (overtime and
+differential variants of PB / CS) follow Mode 1 or Mode 2 of their
+parents? **Mode 1 (sequential).** Only the strict quincena payrolls
+(PB, CS themselves) use Mode 2.
 
 ---
 
@@ -138,7 +151,7 @@ quincena payrolls (PBP, COS themselves) use Mode 2.
 
 ```
 Phase 1  UPLOAD                ComBen Maker uploads simple 3-col file + supporting docs + selects payroll type
-Phase 2  REVIEW & HOLD         Interactive table; mark holds (PBP/COS only); reconcile totals; soft-warn 6-figure PBP/COS
+Phase 2  REVIEW & HOLD         Interactive table; mark holds (PB/CS only); reconcile totals; soft-warn 6-figure PB/CS
 Phase 3  FINDES GENERATION     Account #s pulled from Payee_Database (single source of truth, padded to 10 digits)
 Phase 4  AUTHORIZER EMAIL      Summary + held names + supporting docs + FINDES link. NO Annex H yet.
 Phase 5  WEACCESS (EXTERNAL)   ComBen uploads FINDES to WeAccess; Authorizers approve there; bank executes
@@ -180,7 +193,7 @@ Parallel branches:
 
 **Phase 2 — REVIEW & HOLD.** System parses file, validates every row
 against `Payee_Database`, renders interactive table (§13). Maker marks
-holds (PBP/COS only), reconciles `Declared_Total` vs computed sum.
+holds (PB/CS only), reconciles `Declared_Total` vs computed sum.
 "Submit for Approval" disabled until errors = 0 and totals reconcile.
 
 **Phase 3 — FINDES GENERATION.** Triggered by Submit. Account numbers
@@ -404,10 +417,10 @@ acknowledge. Acknowledgment + reason logged in `Audit_Log`.
 
 ## 5. Hold and sub-batch mechanics — **LOCKED (mostly)**
 
-### 5.1 Hold is PBP/COS only
+### 5.1 Hold is PB/CS only
 
-`Hold_Status` is honored only for `Regular Payroll – Plantilla (PBP)`
-and `Regular Payroll – COS (COS)`. Other 21 payroll types cannot have
+`Hold_Status` is honored only for `Regular Payroll – Plantilla (PB)`
+and `Regular Payroll – COS (CS)`. Other 21 payroll types cannot have
 holds — the Hold button in the review UI is disabled.
 
 ### 5.2 Hold lifecycle
@@ -422,17 +435,22 @@ holds — the Hold button in the review UI is disabled.
 
 ### 5.3 Sub-batch naming — **LOCKED**
 
-Format: **`<BatchNo>_<NN>`** where `<NN>` is a zero-padded
-2-digit sequence starting at `02`. Examples:
+Sub-batches share their parent's first letter and code; the **second
+letter advances** `B`, `C`, `D`, … (§0.5). The full Batch_No stays
+at exactly 8 characters. Examples:
 
-- Parent batch: `04APBP26`
-- First hold release: `04APBP26_02`
-- Second hold release: `04APBP26_03`
+- Parent batch (1st quincena Plantilla, April 2026): `04AAPB26`
+- First hold release: `04ABPB26`
+- Second hold release: `04ACPB26`
+- …
+- Parent batch (2nd quincena Plantilla, same month): `04BAPB26`
+- First hold release of that parent: `04BBPB26`
 - …
 
-Rationale for starting `<NN>` at `02`: the parent batch is
-implicitly release `01`; sub-batches are subsequent releases of the
-same payroll cycle.
+Rationale for the second-letter scheme over the original `_NN`
+suffix: Landbank's WeAccess upload portal rejects FINDES filenames
+whose base exceeds 8 chars, so the sub-batch identifier has to fit
+inside the same 8-character envelope as the parent.
 
 Sub-batches inherit their parent's `Payroll_Type` and `Period_Covered`
 and reference the parent via `Master_Payroll_Batches_<YYYY>.Parent_Batch_No`.
@@ -447,18 +465,18 @@ Sub-batches are stored under `<ParentBatch>/_releases/<SubBatchNo>/` (§6).
 ├── _archive/                          ← cold audit log JSONL files
 ├── 2026/
 │   ├── 04-April/
-│   │   ├── 04APBP26/                  ← parent batch folder
-│   │   │   ├── LINE_ITEMS_04APBP26.json
-│   │   │   ├── PAYROLL_UPLOAD_04APBP26.xlsx   ← frozen evidence
-│   │   │   ├── FINDES_04APBP26.csv
-│   │   │   ├── CM_04APBP26_<TRN>.xlsx
-│   │   │   ├── Annex_H_04APBP26.pdf
-│   │   │   ├── Held_Records_Report_04APBP26.pdf
+│   │   ├── 04AAPB26/                  ← parent batch folder (1st Q Plantilla)
+│   │   │   ├── 04AAPB26.csv           ← FINDES (8-char base = WeAccess limit)
+│   │   │   ├── LINE_ITEMS_04AAPB26.json
+│   │   │   ├── PAYROLL_UPLOAD_04AAPB26.xlsx   ← frozen evidence
+│   │   │   ├── CM_04AAPB26_<TRN>.xlsx
+│   │   │   ├── Annex_H_04AAPB26.pdf
+│   │   │   ├── Held_Records_Report_04AAPB26.pdf
 │   │   │   ├── supporting_docs/
 │   │   │   └── _releases/
-│   │   │       ├── <SubBatch1>/       ← see §5.3 for naming
-│   │   │       └── <SubBatch2>/
-│   │   └── 04ARATA26/
+│   │   │       ├── 04ABPB26/          ← first hold-release sub-batch
+│   │   │       └── 04ACPB26/          ← second hold-release sub-batch
+│   │   └── 04AART26/                  ← parent batch folder (RATA)
 │   └── 05-May/
 └── 2027/
 ```
@@ -501,7 +519,7 @@ changes.
 ```
 PAYROLL DISBURSEMENT — TURNED OVER FOR LIQUIDATION
 
-Batch No.:           04APBP26
+Batch No.:           04AAPB26
 Payroll Type:        Regular Payroll-Plantilla (1st Quincena)
 Period Covered:      April 1-15, 2026
 Bank TRN:            246-067-260508-60636
@@ -590,7 +608,7 @@ Scaled back from earlier proposals. **Minimum viable set:**
 | `HRIS_ID` exists in `Payee_Database` | Hard block | Anti-tampering — cannot proceed past Phase 2 with unknown IDs |
 | Account number normalization (10-char zero-padded text) | Always-on, silent | Applied on every read from `Payee_Database` and every write to FINDES / CM compare |
 | `Declared_Total == computed sum(Amount)` | Hard block | Uploader-typed sanity; mismatch prevents Submit |
-| 6-figure amount in PBP / COS rows | Soft warn | Yellow flag in UI; Maker clicks "Acknowledge" with one-line note; doesn't block; logged in `Audit_Log` |
+| 6-figure amount in PB / CS rows | Soft warn | Yellow flag in UI; Maker clicks "Acknowledge" with one-line note; doesn't block; logged in `Audit_Log` |
 | `HRIS_Name` mismatch (file vs master) | Soft warn | Surfaced in review UI; Admin override available; doesn't block |
 | `HRIS_ID` has no email in `Payee_Database` | Soft warn (row highlight) | ComBen sees it, can resolve before Submit; not a blocker |
 
@@ -607,7 +625,9 @@ Scaled back from earlier proposals. **Minimum viable set:**
 ### 10.1 Contract
 
 - **One FINDES file per batch.** File saved at
-  `<ComBenRoot>/20<yy>/<mm>-MonthName/<BatchNo>/FINDES_<BatchNo>.csv`.
+  `<ComBenRoot>/20<yy>/<mm>-MonthName/<BatchNo>/<BatchNo>.csv`.
+  Filename = Batch_No = 8 chars (matches Landbank's WeAccess upload
+  limit directly so no rename is needed before upload).
 - **One row per payee per FINDES.** ComBen batches are scoped to a
   single earning category, so each employee appears at most once in
   a batch's roster. Duplicate payee names within a batch are a **hard
@@ -721,17 +741,18 @@ Integer centavos, no decimal point, no thousands separator.
 ### 10.9 File save — idempotent
 
 ```
-<ComBenRoot>/20<yy>/<mm>-MonthName/<BatchNo>/FINDES_<BatchNo>.csv
+<ComBenRoot>/20<yy>/<mm>-MonthName/<BatchNo>/<BatchNo>.csv
 ```
 
 - Year folder, month folder (`<mm>-MonthName`), and batch folder
   created if missing.
-- **If `FINDES_<BatchNo>.csv` already exists in the batch folder:**
-  rename existing file to `FINDES_<BatchNo>.bak-<YYYYMMDD-HHMMSS>.csv`,
-  then write new file. (Treasury currently creates duplicates on
-  regenerate; ComBen does not.)
-- `Batch_No` format: `[mm][L][CODE][yy]` (§0.4). Parsing extracts
-  `mm` (first 2 chars) and `yy` (last 2 chars).
+- **If `<BatchNo>.csv` already exists in the batch folder:** rename
+  existing file to `<BatchNo>.bak-<YYYYMMDD-HHMMSS>.csv`, then write
+  the new file. (Treasury currently creates duplicates on regenerate;
+  ComBen does not.) .bak files are local-only audit history; the
+  8-char filename constraint does not apply to them.
+- `Batch_No` format: `[mm][LL][CC][yy]` — exactly 8 characters (§0.4).
+  Parsing extracts `mm` (first 2 chars) and `yy` (last 2 chars).
 
 ### 10.10 Status update + integrity
 

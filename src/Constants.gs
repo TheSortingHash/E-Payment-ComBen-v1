@@ -21,33 +21,37 @@ var TZ = 'Asia/Manila'; // UTC+8 year-round. Per SPEC §2.2 datetime fields.
  * 23 payroll types per SPEC §0.4. Order is canonical; row N of this
  * array is row N+1 of the Payroll_Types sheet after seed.
  *
- * Quincena_Mode = YES only for PBP / COS (SPEC §0.5 Mode 2).
- * Hold_Allowed  = YES only for PBP / COS (SPEC §5.1).
+ * All codes are exactly 2 characters so the full Batch_No
+ * `[mm][LL][CC][yy]` is 8 chars — Landbank's WeAccess FINDES
+ * filename limit.
+ *
+ * Quincena_Mode = YES only for PB / CS (SPEC §0.5 Mode 2).
+ * Hold_Allowed  = YES only for PB / CS (SPEC §5.1).
  */
 var PAYROLL_TYPES = [
-  { name: 'RATA',                                code: 'RT',     quincenaMode: false, holdAllowed: false },
-  { name: 'Communication Expenses',              code: 'CE',     quincenaMode: false, holdAllowed: false },
-  { name: 'Regular Payroll – Plantilla',    code: 'PBP',    quincenaMode: true,  holdAllowed: true  },
-  { name: 'Regular Payroll – COS',          code: 'COS',    quincenaMode: true,  holdAllowed: true  },
-  { name: 'Monetization',                        code: 'MON',    quincenaMode: false, holdAllowed: false },
-  { name: 'Loyalty Pay',                         code: 'LOYA',   quincenaMode: false, holdAllowed: false },
-  { name: 'Step Increment Differential',         code: 'SI',     quincenaMode: false, holdAllowed: false },
-  { name: 'Promotion Differential',              code: 'PRO',    quincenaMode: false, holdAllowed: false },
-  { name: 'RATA OIC',                            code: 'RTOIC',  quincenaMode: false, holdAllowed: false },
-  { name: 'Service Charge',                      code: 'SC',     quincenaMode: false, holdAllowed: false },
-  { name: 'Mid Year Bonus',                      code: 'MYB',    quincenaMode: false, holdAllowed: false },
-  { name: 'Year End Bonus and Cash Gift',        code: 'YEBCG',  quincenaMode: false, holdAllowed: false },
-  { name: 'Productivity Enhancement Incentive',  code: 'PEI',    quincenaMode: false, holdAllowed: false },
-  { name: 'Service Recognition Incentive',       code: 'SRI',    quincenaMode: false, holdAllowed: false },
-  { name: 'Performance Based Bonus',             code: 'PBB',    quincenaMode: false, holdAllowed: false },
-  { name: 'Loan Refund',                         code: 'REF',    quincenaMode: false, holdAllowed: false },
-  { name: 'Landbank Loan Refund',                code: 'LBP',    quincenaMode: false, holdAllowed: false },
-  { name: 'Overtime Payroll – Plantilla',   code: 'PBPOT',  quincenaMode: false, holdAllowed: false },
-  { name: 'Overtime Payroll – COS',         code: 'COSOT',  quincenaMode: false, holdAllowed: false },
-  { name: 'Differential – COS',             code: 'COSDIF', quincenaMode: false, holdAllowed: false },
-  { name: 'Differential – PBP',             code: 'DIFF',   quincenaMode: false, holdAllowed: false },
-  { name: 'Gratuity Pay',                        code: 'GRA',    quincenaMode: false, holdAllowed: false },
-  { name: 'Token',                               code: 'TOKEN',  quincenaMode: false, holdAllowed: false },
+  { name: 'RATA',                                code: 'RT', quincenaMode: false, holdAllowed: false },
+  { name: 'Communication Expenses',              code: 'CE', quincenaMode: false, holdAllowed: false },
+  { name: 'Regular Payroll – Plantilla',    code: 'PB', quincenaMode: true,  holdAllowed: true  },
+  { name: 'Regular Payroll – COS',          code: 'CS', quincenaMode: true,  holdAllowed: true  },
+  { name: 'Monetization',                        code: 'MN', quincenaMode: false, holdAllowed: false },
+  { name: 'Loyalty Pay',                         code: 'LY', quincenaMode: false, holdAllowed: false },
+  { name: 'Step Increment Differential',         code: 'SI', quincenaMode: false, holdAllowed: false },
+  { name: 'Promotion Differential',              code: 'PR', quincenaMode: false, holdAllowed: false },
+  { name: 'RATA OIC',                            code: 'RO', quincenaMode: false, holdAllowed: false },
+  { name: 'Service Charge',                      code: 'SC', quincenaMode: false, holdAllowed: false },
+  { name: 'Mid Year Bonus',                      code: 'MY', quincenaMode: false, holdAllowed: false },
+  { name: 'Year End Bonus and Cash Gift',        code: 'YE', quincenaMode: false, holdAllowed: false },
+  { name: 'Productivity Enhancement Incentive',  code: 'PE', quincenaMode: false, holdAllowed: false },
+  { name: 'Service Recognition Incentive',       code: 'SR', quincenaMode: false, holdAllowed: false },
+  { name: 'Performance Based Bonus',             code: 'BB', quincenaMode: false, holdAllowed: false },
+  { name: 'Loan Refund',                         code: 'RF', quincenaMode: false, holdAllowed: false },
+  { name: 'Landbank Loan Refund',                code: 'LB', quincenaMode: false, holdAllowed: false },
+  { name: 'Overtime Payroll – Plantilla',   code: 'OT', quincenaMode: false, holdAllowed: false },
+  { name: 'Overtime Payroll – COS',         code: 'OC', quincenaMode: false, holdAllowed: false },
+  { name: 'Differential – COS',             code: 'DC', quincenaMode: false, holdAllowed: false },
+  { name: 'Differential – PBP',             code: 'DP', quincenaMode: false, holdAllowed: false },
+  { name: 'Gratuity Pay',                        code: 'GP', quincenaMode: false, holdAllowed: false },
+  { name: 'Token',                               code: 'TK', quincenaMode: false, holdAllowed: false },
 ];
 
 var BATCH_STATUSES = [
@@ -171,6 +175,6 @@ var CONFIG_DEFAULTS = [
   { setting: 'emailHeaderHtml',                      value: EMAIL_HEADER_HTML,                                                           notes: 'DAP palette navy #1C2790 header. Editable without code changes.' },
   { setting: 'emailFooterHtml',                      value: EMAIL_FOOTER_HTML,                                                           notes: 'DAP palette gold #CDAE2C accent. Editable without code changes.' },
   { setting: 'notificationTriggerRate',              value: '50',                                                                        notes: 'Emails per minute drained by Phase 7 trigger. Keeps daily volume under Apps Script send caps.' },
-  { setting: 'softWarnThresholdPhp',                 value: '100000',                                                                    notes: '6-figure soft-warn threshold for PBP/COS amounts (SPEC §9).' },
-  { setting: 'signatureBatch_Letter_RegularPayroll', value: 'A=1st Quincena, B=2nd Quincena',                                            notes: 'Display label for PBP/COS quincena letters (SPEC §0.5 Mode 2).' },
+  { setting: 'softWarnThresholdPhp',                 value: '100000',                                                                    notes: '6-figure soft-warn threshold for PB/CS amounts (SPEC §9).' },
+  { setting: 'signatureBatch_Letter_RegularPayroll', value: 'AA=1st Quincena, BA=2nd Quincena',                                          notes: 'Display label for PB/CS quincena letter pairs (SPEC §0.5 Mode 2).' },
 ];

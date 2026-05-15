@@ -20,27 +20,45 @@ const MONTH_NAMES = [
 ];
 
 /**
- * Parse the Batch_No format `[mm][L][CODE][yy]`, optionally with a
- * `_NN` sub-batch suffix (SPEC §0.4, §5.3).
+ * Parse a Batch_No. Format is exactly 8 characters: `[mm][LL][CC][yy]`
+ * (SPEC §0.4 — Landbank's WeAccess FINDES filename limit).
  *
- *   '04APBP26'    → { mm:'04', letter:'A', code:'PBP', yy:'26', year:'2026', month:4, subBatchSeq:null }
- *   '04APBP26_02' → { …, subBatchSeq:'02' }
+ * The 2-letter `LL` pair distinguishes parent batches from
+ * hold-release sub-batches: second letter `A` = parent, `B`/`C`/... =
+ * sub-batch under that parent. The parent's first letter is shared
+ * by all its sub-batches.
+ *
+ *   '04AAPB26'   → parent 1st-quincena Plantilla, April 2026
+ *                  { mm:'04', letterPair:'AA', firstLetter:'A',
+ *                    secondLetter:'A', code:'PB', yy:'26',
+ *                    year:'2026', month:4, isSubBatch:false,
+ *                    parentBatchNo:null }
+ *
+ *   '04ABPB26'   → first hold-release sub-batch of the above
+ *                  { …, letterPair:'AB', secondLetter:'B',
+ *                    isSubBatch:true, parentBatchNo:'04AAPB26' }
  */
 function parseBatchNo(batchNo) {
-  const m = String(batchNo || '').match(/^(\d{2})([A-Z])([A-Z]{2,5})(\d{2})(?:_(\d{2}))?$/);
-  if (!m) throw new Error('parseBatchNo: invalid Batch_No "' + batchNo + '"');
+  const m = String(batchNo || '').match(/^(\d{2})([A-Z])([A-Z])([A-Z]{2})(\d{2})$/);
+  if (!m) throw new Error('parseBatchNo: invalid Batch_No "' + batchNo + '" (expected [mm][LL][CC][yy], 8 chars)');
   const month = parseInt(m[1], 10);
   if (month < 1 || month > 12) {
     throw new Error('parseBatchNo: invalid month "' + m[1] + '" in "' + batchNo + '"');
   }
+  const firstLetter = m[2];
+  const secondLetter = m[3];
+  const isSubBatch = secondLetter !== 'A';
   return {
     mm: m[1],
-    letter: m[2],
-    code: m[3],
-    yy: m[4],
-    year: '20' + m[4],
+    letterPair: firstLetter + secondLetter,
+    firstLetter: firstLetter,
+    secondLetter: secondLetter,
+    code: m[4],
+    yy: m[5],
+    year: '20' + m[5],
     month: month,
-    subBatchSeq: m[5] || null,
+    isSubBatch: isSubBatch,
+    parentBatchNo: isSubBatch ? (m[1] + firstLetter + 'A' + m[4] + m[5]) : null,
   };
 }
 
@@ -87,15 +105,14 @@ function ensureMonthFolder(year, month, ss) {
 
 /**
  * Ensure `<root>/<YYYY>/<MM-Month>/<BatchNo>/` exists and return it.
- * For sub-batches (Batch_No ends in `_NN`), the resolved path is
- * `<parentBatchFolder>/_releases/<SubBatchNo>/` per SPEC §5.3.
+ * For sub-batches (second letter of `LL` != 'A'), the resolved path
+ * is `<parentBatchFolder>/_releases/<SubBatchNo>/` per SPEC §5.3.
  */
 function ensureBatchFolder(batchNo, ss) {
   const parts = parseBatchNo(batchNo);
   const monthFolder = ensureMonthFolder(parts.year, parts.month, ss);
-  if (parts.subBatchSeq) {
-    const parentNo = batchNo.slice(0, batchNo.lastIndexOf('_'));
-    const parentFolder = _ensureChildFolder(monthFolder, parentNo);
+  if (parts.isSubBatch) {
+    const parentFolder = _ensureChildFolder(monthFolder, parts.parentBatchNo);
     const releases = _ensureChildFolder(parentFolder, '_releases');
     return _ensureChildFolder(releases, batchNo);
   }

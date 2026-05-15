@@ -58,9 +58,9 @@ during implementation.
 - **Net-pay assumption:** ComBen receives net-pay amounts; no
   in-system deductions.
 - **23 payroll types** (the v1 template's "22" was a typo).
-- **COSDIF carries a batch letter** (the naming-convention sheet's
-  omission was a typo).
-- **Hold is PBP/COS only.** Other 21 types cannot have holds.
+- **DC (Differential – COS) carries a batch letter pair** (the
+  naming-convention sheet's omission was a typo).
+- **Hold is PB/CS only.** Other 21 types cannot have holds.
 
 ### Workflow and integrations
 
@@ -80,9 +80,13 @@ during implementation.
 - **Treasury bridge for Payee_Database writes** — locked option (b).
   Treasury exposes a small Apps Script web app; ComBen calls via
   `UrlFetchApp` with shared secret. See SPEC §15.
-- **Sub-batch format:** `<BatchNo>_<NN>` (e.g., `04APBP26_02`).
+- **Sub-batch format:** Encoded in the second letter of the 2-letter
+  batch sequence. Parent batches end in `A` (e.g., `04AAPB26`); the
+  second letter advances `B`/`C`/`D`/… for each hold-release sub-batch
+  (e.g., `04ABPB26`). Total Batch_No is exactly 8 characters per
+  Landbank's WeAccess FINDES filename limit.
 - **OT and Differentials batch-letter mode:** Mode 1 (sequential).
-  Only PBP and COS themselves use Mode 2 (quincena).
+  Only PB and CS themselves use Mode 2 (quincena).
 - **Disbursing officer:** Maria Monica O. Talan (Treasury). ComBen
   operates, Treasury certifies. Stored in `Config`, not hardcoded.
 - **Accounting recipients:** `padillaj@`, `preciadosr@`,
@@ -95,11 +99,17 @@ during implementation.
 - **FINDES quoting:** account field is quoted in the CSV.
 - **FINDES idempotency:** existing file is renamed to `.bak-<ts>`
   before overwrite, not duplicated.
-- **Batch-number format:** `[mm][L][CODE][yy]` (e.g., `04BRT26`).
-  Replaces Treasury's `YYYY-MM-NNN` format.
-- **Batch-letter convention:** resets to `A` per `(month,
-  payroll-type)`; Mode 1 sequential for most types; Mode 2
-  quincena-keyed for PBP and COS only.
+- **Batch-number format:** `[mm][LL][CC][yy]` — exactly 8 characters
+  (e.g., `04AAPB26`, `04BART26`). Constrained by Landbank's WeAccess
+  FINDES filename ≤ 8 chars; replaces Treasury's `YYYY-MM-NNN`
+  format. All payroll-type codes are 2 chars (see SPEC §0.4).
+- **Batch-letter convention:** 2-letter pair; first letter cycles per
+  parent batch within `(month, payroll-type)`; second letter is `A`
+  for parents and `B`/`C`/`D`/… for hold-release sub-batches under
+  that parent. Mode 1 sequential for most types; Mode 2 quincena-keyed
+  (Q1 = `AA`, Q2 = `BA`) for PB and CS only.
+- **FINDES filename:** `<BatchNo>.csv` (8-char base) — matches
+  Landbank's WeAccess upload limit so the Drive file uploads directly.
 
 ### Annex H
 
@@ -115,7 +125,7 @@ during implementation.
 
 - **Sanity checks:** scaled back per SPEC §9 — hard blocks on
   unknown HRIS_ID and declared-total mismatch; soft warn on 6-figure
-  PBP/COS amounts (with Maker ack + note); soft warn on name mismatch
+  PB/CS amounts (with Maker ack + note); soft warn on name mismatch
   (Admin override available); no per-type amount caps or count
   ranges.
 - **Leading-zero policy:** normalize on every read and write to

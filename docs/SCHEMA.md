@@ -59,8 +59,8 @@ live in Drive (SPEC §2.3).
 
 | Col | Header | Type | Format | Validation | Notes |
 |---|---|---|---|---|---|
-| A | `Batch_No` | text | `@` | regex `^\d{2}[A-Z]+[A-Z]{2,5}\d{2}(_\d{2})?$` | Primary key. `[mm][L][CODE][yy]` or with `_NN` sub-batch suffix. |
-| B | `Parent_Batch_No` | text | `@` | regex `^\d{2}[A-Z]+[A-Z]{2,5}\d{2}$` or blank | Set only on sub-batches. Blank for parents. |
+| A | `Batch_No` | text | `@` | regex `^\d{2}[A-Z]{2}[A-Z]{2}\d{2}$` | Primary key. `[mm][LL][CC][yy]` — exactly 8 chars (Landbank WeAccess FINDES filename limit). Second letter `A` = parent batch; `B`/`C`/… = hold-release sub-batch. |
+| B | `Parent_Batch_No` | text | `@` | regex `^\d{2}[A-Z]A[A-Z]{2}\d{2}$` or blank | Set only on sub-batches. Blank for parents. (Second letter `A` enforces that the referenced parent is itself a parent batch.) |
 | C | `Payroll_Type` | text | — | Dropdown sourced from `Payroll_Types.A2:A` | One of 23 types. |
 | D | `Period_Covered` | text | — | — | Free text, e.g. `April 1-15, 2026`. |
 | E | `Status` | text | — | Dropdown: `Draft`, `Pending Approval`, `Bank Processing`, `Bank-Confirmed`, `Notifications Sent`, `Annex H Generated`, `Forwarded to Accounting`, `Closed`, `Partially Released - Hold Pending`, `Failed - Bank Mismatch`, `Cancelled` | State machine (SPEC §1). |
@@ -134,9 +134,9 @@ Canonical list of 23 payroll types + email templates per type.
 | Col | Header | Type | Format | Validation | Notes |
 |---|---|---|---|---|---|
 | A | `Payroll_Type` | text | — | unique | e.g. `Regular Payroll – Plantilla`. |
-| B | `Code` | text | `@` | regex `^[A-Z]{2,5}$` | e.g. `PBP`. |
-| C | `Quincena_Mode` | boolean | — | Dropdown: `YES`, `NO` | `YES` only for `PBP` and `COS`. |
-| D | `Hold_Allowed` | boolean | — | Dropdown: `YES`, `NO` | `YES` only for `PBP` and `COS`. |
+| B | `Code` | text | `@` | regex `^[A-Z]{2}$` | Exactly 2 chars (8-char Batch_No constraint). e.g. `PB`. |
+| C | `Quincena_Mode` | boolean | — | Dropdown: `YES`, `NO` | `YES` only for `PB` and `CS`. |
+| D | `Hold_Allowed` | boolean | — | Dropdown: `YES`, `NO` | `YES` only for `PB` and `CS`. |
 | E | `Notification_Subject` | text | — | — | Template with `{{batch_no}}`, `{{period}}`, `{{amount}}`. |
 | F | `Notification_Body_HTML` | text | — | — | Full HTML template. Mustache placeholders. |
 | G | `Active` | boolean | — | Dropdown: `YES`, `NO` | Allows soft-disabling without deleting. |
@@ -145,8 +145,8 @@ Canonical list of 23 payroll types + email templates per type.
 
 `setupComBenSchema()` populates all 23 rows with sensible defaults:
 - `Code` per SPEC §0.4 table.
-- `Quincena_Mode = YES` for `PBP`, `COS`; `NO` for all others.
-- `Hold_Allowed = YES` for `PBP`, `COS`; `NO` for all others.
+- `Quincena_Mode = YES` for `PB`, `CS`; `NO` for all others.
+- `Hold_Allowed = YES` for `PB`, `CS`; `NO` for all others.
 - `Notification_Subject` = `"[DAP] {{payroll_type}} for {{period}}"`.
 - `Notification_Body_HTML` = a generic template; Admin edits per type.
 - `Active = YES`.
@@ -229,7 +229,7 @@ the system uses, no hardcoded values in code.
 | `emailHeaderHtml` | `<table style="background:#1C2790;…">` | DAP palette navy. |
 | `emailFooterHtml` | `<div style="border-top:3px solid #CDAE2C;…">` | DAP palette gold. |
 | `notificationTriggerRate` | `50` | Emails per minute (Phase 7 trigger). |
-| `softWarnThresholdPhp` | `100000` | 6-figure soft-warn (PBP/COS only). |
+| `softWarnThresholdPhp` | `100000` | 6-figure soft-warn (PB/CS only). |
 | `signatureBatch_Letter_RegularPayroll` | `A=1st Quincena, B=2nd Quincena` | Display label. |
 
 ---

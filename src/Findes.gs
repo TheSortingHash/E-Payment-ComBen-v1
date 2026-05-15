@@ -8,7 +8,12 @@
  * not repeat this mistake.)
  *
  * Output path:
- *   <ComBenRoot>/<YYYY>/<MM-Month>/<BatchNo>/FINDES_<BatchNo>.csv
+ *   <ComBenRoot>/<YYYY>/<MM-Month>/<BatchNo>/<BatchNo>.csv
+ *
+ * Filename = Batch_No = 8 chars (Landbank WeAccess upload limit per
+ * SPEC §0.4). On regeneration, the existing file is renamed to
+ * `<BatchNo>.bak-<YYYYMMDD-HHMMSS>.csv` before the new one is written;
+ * .bak files are local-only and don't carry the 8-char constraint.
  *
  * Row format (LF newlines, no trailing newline per §10.8):
  *   "<10-digit account>","<cleaned name>",<integer centavos>
@@ -96,12 +101,12 @@ function generateFindes(batchNo, opts) {
 
   // §10.9 — idempotent save with .bak-<ts> rotation.
   const folder = ensureBatchFolder(batchNo);
-  const filename = 'FINDES_' + batchNo + '.csv';
+  const filename = batchNo + '.csv';
   const existingIter = folder.getFilesByName(filename);
   if (existingIter.hasNext()) {
     const existing = existingIter.next();
     const ts = Utilities.formatDate(new Date(), TZ, 'yyyyMMdd-HHmmss');
-    existing.setName('FINDES_' + batchNo + '.bak-' + ts + '.csv');
+    existing.setName(batchNo + '.bak-' + ts + '.csv');
   }
   const file = folder.createFile(filename, csv, MimeType.CSV);
 
