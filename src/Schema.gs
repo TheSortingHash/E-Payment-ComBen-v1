@@ -252,6 +252,25 @@ const SHEET_SPECS = [
     seed: _seedPayrollTypes,
   },
 
+  // SPEC §0.3 (REVISED) — local Payee_Database mirror.
+  // Maintained by paste/import from Treasury's master roster until the
+  // bridge in SPEC §15 is built. Column headers match Treasury's exact
+  // labels (spaces, not underscores) so a copy/paste drops in cleanly.
+  // '@' text format on Landbank Account and HRIS Number preserves
+  // leading zeros (SPEC §11).
+  {
+    name: 'Payee_Database',
+    yearly: false,
+    frozenRows: 1,
+    frozenCols: 0,
+    columns: [
+      { header: 'Payee Name',       format: null, validation: null },
+      { header: 'Landbank Account', format: '@',  validation: null },
+      { header: 'Email Address',    format: null, validation: null },
+      { header: 'HRIS Number',      format: '@',  validation: null },
+    ],
+  },
+
   // SCHEMA §4 — Authorizers
   {
     name: 'Authorizers',

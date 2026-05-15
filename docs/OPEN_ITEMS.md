@@ -37,6 +37,15 @@ during implementation.
    status API, a future enhancement could poll for status — but not
    in v1.
 
+6. **Local `Payee_Database` mirror (v1 substitute for Treasury bridge).**
+   v1 maintains a local mirror sheet in the ComBen spreadsheet (SPEC
+   §0.3 REVISED) rather than the bridge-based architecture in SPEC
+   §15. When the Treasury bridge ships, swap the enrollment
+   endpoints' sheet writes for `UrlFetchApp` calls, decide whether the
+   local sheet becomes a read-through cache or is removed, and re-lock
+   §0.3 to the bridge model. Until then, paste-sync from Treasury when
+   the master roster changes.
+
 ## Resolved during planning (record only)
 
 ### Definitions and scope

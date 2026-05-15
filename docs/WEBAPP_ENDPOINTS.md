@@ -896,6 +896,13 @@ annex_h_generate
 
 ## §J. Treasury bridge (called by ComBen — not exposed)
 
+> **Status (v1):** Deferred. v1 uses a local `Payee_Database` mirror
+> instead (SPEC §0.3 REVISED). The bridge contract below remains the
+> eventual target — the local enrollment writes will preserve the same
+> audit-trail shape (`HRIS_Pending_Changes.Treasury_Bridge_Response`
+> stays as the audit field, populated with the local write receipt
+> until a real bridge response replaces it).
+
 Per SPEC §15, ComBen calls a Treasury-owned web app via
 `UrlFetchApp`. Endpoints (re-stated here for the build-phase
 contract):

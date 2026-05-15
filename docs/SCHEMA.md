@@ -34,10 +34,13 @@ Conventions used throughout:
 | 8 | `HRIS_Pending_Changes` | Hot — transient | Row archived after decision; kept for one year then exported to JSONL |
 | 9 | `Audit_Log_<YYYY>` | Hot — append-only | Yearly partition; previous year exported to `_archive/Audit_Log_<YYYY>.jsonl` and sheet cleared |
 | 10 | `_Setup_Log` | Meta — bootstrap audit | None |
+| 11 | `Payee_Database` | Hot — local mirror | None (paste-sync from Treasury when master changes) |
 
-`Payee_Database` is **not** in this list — it lives in Treasury's
-spreadsheet (SPEC §0.3). Its shape is documented in §A below for
-reference only; ComBen does not create or modify it directly.
+`Payee_Database` (entry 11) is the **local mirror** of Treasury's
+master roster (SPEC §0.3 REVISED). Same four-column shape;
+`setupComBenSchema()` creates it with headers only — Admin / Maker
+populates by paste / import from Treasury and maintains manually until
+the bridge in SPEC §15 is built.
 
 ---
 
@@ -335,10 +338,14 @@ Audit of every `setupComBenSchema()` and `verifyComBenSchema()` run.
 
 ---
 
-## §A. `Payee_Database` (Treasury-owned — for reference only)
+## §A. `Payee_Database` (local mirror — SPEC §0.3 REVISED)
 
-Documented here so ComBen developers know the shape of what the bridge
-returns. Do **not** create this sheet in the ComBen spreadsheet.
+ComBen's local mirror of Treasury's master roster. Same shape as
+Treasury's spreadsheet so a paste from there drops in cleanly.
+`setupComBenSchema()` creates this sheet alongside the others. The
+"Bridge response shape" subsection below remains a useful contract: it
+is also the shape returned by the `enrollment_lookup` endpoint
+(`WEBAPP_ENDPOINTS.md` §C.1), which reads from this local sheet in v1.
 
 | Col | Header | Type | Format | Notes |
 |---|---|---|---|---|
