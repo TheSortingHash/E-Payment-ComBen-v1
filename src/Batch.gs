@@ -410,6 +410,11 @@ function batch_submit(args) {
       );
     }
 
+    // Phase 3 — generate FINDES inside the same batch lock. If this
+    // throws (duplicate HRIS, short account, etc.), state stays Draft
+    // and the Maker can fix and re-submit.
+    const findesResult = generateFindes(batchNo, { session: session });
+
     batchHeadUpdate(batchNo, { Status: 'Pending Approval' });
     audit({
       action: 'BATCH_SUBMITTED',
@@ -418,10 +423,21 @@ function batch_submit(args) {
       targetType: 'BATCH',
       targetId: batchNo,
       before: { Status: 'Draft' },
-      after: { Status: 'Pending Approval', computed_total: computed, declared_total: declared },
-      note: 'Slice 4 scope: FINDES generation (Slice 5) and authorizer email (Slice 6) not yet wired',
+      after: {
+        Status: 'Pending Approval',
+        computed_total: computed,
+        declared_total: declared,
+        findes_file_id: findesResult.file_id,
+        findes_row_count: findesResult.row_count,
+      },
+      note: 'Authorizer email (Slice 6) not yet wired',
     });
-    return { ok: true, batch_no: batchNo, status: 'Pending Approval' };
+    return {
+      ok: true,
+      batch_no: batchNo,
+      status: 'Pending Approval',
+      findes: findesResult,
+    };
   });
 }
 
