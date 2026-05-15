@@ -44,7 +44,12 @@ function parseBatchNo(batchNo) {
   };
 }
 
-function _readConfigValue(ss, key) {
+// _drive_readConfig (not _readConfigValue) avoids a global-namespace
+// collision with Schema.gs's helper of the same name. Apps Script has
+// a single namespace across all .gs files; whichever loads later wins,
+// and Schema's helper (looser — returns '' on missing sheet) would
+// silently replace this stricter version.
+function _drive_readConfig(ss, key) {
   const sheet = ss.getSheetByName('Config');
   if (!sheet) throw new Error('Config sheet missing — run setupComBenSchema()');
   const lastRow = sheet.getLastRow();
@@ -58,7 +63,7 @@ function _readConfigValue(ss, key) {
 
 function getComBenRoot(ss) {
   const spreadsheet = ss || SpreadsheetApp.getActiveSpreadsheet();
-  const id = _readConfigValue(spreadsheet, 'combenDriveRootFolderId');
+  const id = _drive_readConfig(spreadsheet, 'combenDriveRootFolderId');
   if (!id) {
     throw new Error('combenDriveRootFolderId is not set in Config — set it and re-run setupComBenSchema().');
   }
