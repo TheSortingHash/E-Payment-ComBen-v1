@@ -229,9 +229,17 @@ function requireRole(allowed) {
  */
 function createUser(email, password, role, displayName) {
   const e = String(email || '').trim();
-  if (!EMAIL_RE.test(e)) throw new Error('createUser: malformed email.');
-  if (String(password || '').length < MIN_PASSWORD_LEN) {
-    throw new Error('createUser: password must be at least ' + MIN_PASSWORD_LEN + ' characters.');
+  if (!EMAIL_RE.test(e)) {
+    throw new Error(
+      'createUser: malformed email ' + (e === '' ? '(empty — did you click Run with no args?)' : '"' + e + '"') +
+      '. Expected like name@dap.edu.ph.'
+    );
+  }
+  const pwLen = String(password || '').length;
+  if (pwLen < MIN_PASSWORD_LEN) {
+    throw new Error(
+      'createUser: password is ' + pwLen + ' character(s); must be at least ' + MIN_PASSWORD_LEN + '.'
+    );
   }
   if (USER_ROLES.indexOf(role) === -1) {
     throw new Error('createUser: unknown role "' + role + '". Allowed: ' + USER_ROLES.join(', '));
