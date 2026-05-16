@@ -496,10 +496,24 @@ changes.
 ### 7.1 Authorizer summary (Phase 4)
 
 - Subject: `[ComBen] Endorsement Request — <BatchNo> (<Payroll Type>)`
-- Body: batch metadata, totals (active + held), **held payee names +
-  reasons**, link to supporting docs folder, link to FINDES file.
-- **No Annex H** (per COA flow — Annex H is post-process).
-- Recipients: `Authorizers` sheet.
+- Body (DAP navy/gold HTML with the DAP logo in the header): batch
+  metadata, totals (active + held), **held payee names + reasons**,
+  and an action note pointing authorizers at the WeAccess portal.
+- **Attachments — files, not links.** Drive links require per-file
+  permission grants for each authorizer's Google account; attachments
+  avoid that friction entirely:
+  - `PAYROLL_UPLOAD_<BatchNo>.xlsx` (the **Payroll Register**;
+    renamed to `Payroll_Register_<BatchNo>.xlsx` in the email for
+    readability).
+  - All PDFs in `<batch>/supporting_docs/`.
+- **Deliberately NOT attached:**
+  - FINDES CSV — bank-side only; no review value for authorizers.
+  - Annex H — generated post-process in Phase 8; doesn't exist yet.
+- Recipients: every `Active = YES` row in the `Authorizers` sheet.
+  BCC: `Config.adminEmail` (if set).
+- Sent by `MailApp.sendEmail`. If sending fails (no active
+  authorizers, quota exceeded, etc.), `batch_submit` raises and the
+  batch stays in `Draft` — the Maker fixes the cause and re-submits.
 
 ### 7.2 Payee notification (Phase 7)
 

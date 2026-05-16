@@ -429,6 +429,13 @@ function batch_submit(args) {
     // and the Maker can fix and re-submit.
     const findesResult = generateFindes(batchNo, { session: session });
 
+    // Phase 4 — send authorizer endorsement email with the Payroll
+    // Register + supporting docs attached. If this throws (no active
+    // authorizers, MailApp quota, etc.) state stays Draft so the
+    // Maker fixes and resubmits — FINDES rotation on retry handles
+    // the duplicate-file case automatically (§10.9).
+    const emailResult = sendAuthorizerEmail(batchNo, { session: session });
+
     batchHeadUpdate(batchNo, { Status: 'Pending Approval' });
     audit({
       action: 'BATCH_SUBMITTED',
@@ -443,14 +450,16 @@ function batch_submit(args) {
         declared_total: declared,
         findes_file_id: findesResult.file_id,
         findes_row_count: findesResult.row_count,
+        authorizer_recipients: emailResult.recipients,
+        authorizer_attachment_count: emailResult.attachment_count,
       },
-      note: 'Authorizer email (Slice 6) not yet wired',
     });
     return {
       ok: true,
       batch_no: batchNo,
       status: 'Pending Approval',
       findes: findesResult,
+      authorizer_email: emailResult,
     };
   });
 }
