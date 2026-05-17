@@ -23,7 +23,20 @@
  */
 
 function doGet(e) {
-  return HtmlService.createHtmlOutputFromFile('index')
+  // The HTML file is normally named 'index'. If the project was pushed
+  // with a folder prefix still on the file names (e.g. clasp without
+  // rootDir set), it may instead be named 'src/index' — try both.
+  var html = null;
+  var names = ['index', 'src/index'];
+  for (var i = 0; i < names.length; i++) {
+    try { html = HtmlService.createHtmlOutputFromFile(names[i]); break; }
+    catch (err) { /* try the next candidate */ }
+  }
+  if (!html) {
+    throw new Error('Could not find the index HTML file. Make sure index.html ' +
+      'is present in the Apps Script project.');
+  }
+  return html
     .setTitle('DAP ComBen E-Payment')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
