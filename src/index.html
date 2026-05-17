@@ -187,11 +187,75 @@
             '<label>Password</label><input id="liPass" type="password" autocomplete="current-password">' +
             '<div style="margin-top:16px"><button class="btn-primary" id="liBtn" style="width:100%">Sign in</button></div>' +
             '<div id="liErr"></div>' +
+            '<p style="margin-top:14px;text-align:center"><a href="#" id="liForgot">Forgot password?</a></p>' +
           '</div>' +
         '</div>';
       el('liBtn').addEventListener('click', doLogin);
       el('liPass').addEventListener('keydown', function (e) {
         if (e.key === 'Enter') doLogin();
+      });
+      el('liForgot').addEventListener('click', function (e) { e.preventDefault(); showReset(); });
+    }
+
+    /* ---- forgot password ------------------------------------------------ */
+    function showReset() {
+      el('app').innerHTML =
+        '<div class="login-wrap">' +
+          '<div class="logobar"><img src="' + LOGO + '" alt="DAP"></div>' +
+          '<div class="login-body" id="resetBody"></div>' +
+        '</div>';
+      renderResetStep1();
+    }
+    function renderResetStep1() {
+      el('resetBody').innerHTML =
+        '<h1>Reset password</h1>' +
+        '<p class="muted">Enter your DAP email. A 6-digit code will be sent to that address.</p>' +
+        '<label>DAP email</label><input id="rsEmail" type="email">' +
+        '<div style="margin-top:16px"><button class="btn-primary" id="rsSend" style="width:100%">Send reset code</button></div>' +
+        '<div id="rsErr"></div>' +
+        '<p style="margin-top:14px"><a href="#" id="rsBack">&larr; Back to sign in</a></p>';
+      el('rsBack').addEventListener('click', function (e) { e.preventDefault(); showLogin(); });
+      el('rsSend').addEventListener('click', function () {
+        var email = el('rsEmail').value.trim();
+        var btn = el('rsSend');
+        el('rsErr').innerHTML = '';
+        btn.disabled = true; btn.textContent = 'Sending…';
+        call('auth_request_reset', email).then(function (r) {
+          renderResetStep2(email, r.message);
+        }).catch(function (e) {
+          btn.disabled = false; btn.textContent = 'Send reset code';
+          el('rsErr').innerHTML = '<div class="err-box">' + esc(e.message) + '</div>';
+        });
+      });
+    }
+    function renderResetStep2(email, msg) {
+      el('resetBody').innerHTML =
+        '<h1>Enter code</h1>' +
+        '<p class="muted">' + esc(msg) + '</p>' +
+        '<label>Reset code</label><input id="rsCode" inputmode="numeric" maxlength="6">' +
+        '<label>New password (min 10 characters)</label><input id="rsPw1" type="password">' +
+        '<label>Confirm new password</label><input id="rsPw2" type="password">' +
+        '<div style="margin-top:16px"><button class="btn-primary" id="rsReset" style="width:100%">Reset password</button></div>' +
+        '<div id="rsErr"></div>' +
+        '<p style="margin-top:14px"><a href="#" id="rsBack">&larr; Back to sign in</a></p>';
+      el('rsBack').addEventListener('click', function (e) { e.preventDefault(); showLogin(); });
+      el('rsReset').addEventListener('click', function () {
+        var code = el('rsCode').value.trim();
+        var pw1 = el('rsPw1').value, pw2 = el('rsPw2').value;
+        el('rsErr').innerHTML = '';
+        if (pw1 !== pw2) {
+          el('rsErr').innerHTML = '<div class="err-box">Passwords do not match.</div>';
+          return;
+        }
+        var btn = el('rsReset');
+        btn.disabled = true; btn.textContent = 'Resetting…';
+        call('auth_reset_password', email, code, pw1).then(function (r) {
+          toast(r.message);
+          showLogin();
+        }).catch(function (e) {
+          btn.disabled = false; btn.textContent = 'Reset password';
+          el('rsErr').innerHTML = '<div class="err-box">' + esc(e.message) + '</div>';
+        });
       });
     }
     function doLogin() {

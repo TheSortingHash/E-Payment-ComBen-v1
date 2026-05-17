@@ -263,3 +263,135 @@ function createUser(email, password, role, displayName) {
   ]);
   return { ok: true, email: e, role: role };
 }
+
+/* ----------------------------------------------------------------------
+ * Password reset (WEBAPP_ENDPOINTS §E.4, §E.5)
+ * -------------------------------------------------------------------- */
+
+const RESET_CODE_TTL_SECONDS = 900; // 15 minutes
+const RESET_MAX_ATTEMPTS = 5;
+
+function _auth_resetKey(email) {
+  return 'reset:' + String(email || '').trim().toLowerCase();
+}
+
+function _auth_genResetCode() {
+  const hex = sha256Hex(Utilities.getUuid() + ':' + Date.now());
+  const n = parseInt(hex.substring(0, 8), 16) % 1000000;
+  return ('00000' + n).slice(-6);
+}
+
+/**
+ * Core password change: a fresh salt + SHA256 hash written to
+ * User_Database. Editor-runnable for account recovery — wrap it:
+ *
+ *   function _resetMe() {
+ *     resetUserPassword('you@dap.edu.ph', 'NewPassword123');
+ *   }
+ *
+ * and Run _resetMe.
+ */
+function resetUserPassword(email, newPassword) {
+  const e = String(email || '').trim();
+  if (!EMAIL_RE.test(e)) throw new Error('resetUserPassword: malformed email.');
+  if (String(newPassword || '').length < MIN_PASSWORD_LEN) {
+    throw new Error('resetUserPassword: password must be at least ' + MIN_PASSWORD_LEN + ' characters.');
+  }
+  const user = _auth_lookupUserByEmail(e);
+  if (!user) throw new Error('resetUserPassword: no user ' + e + '.');
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('User_Database');
+  const salt = Utilities.getUuid();
+  sheet.getRange(user.rowIndex, 2).setValue(_auth_hashPassword(salt, newPassword)); // Password_Hash
+  sheet.getRange(user.rowIndex, 3).setValue(salt);                                  // Salt
+  return { ok: true, email: e };
+}
+
+/**
+ * auth_request_reset — generate a 6-digit code (15-min TTL,
+ * single-use, max 5 verify attempts), email it to the registered
+ * address. Returns the same generic message whether or not the email
+ * is registered (no account enumeration).
+ */
+function auth_request_reset(email) {
+  const e = String(email || '').trim().toLowerCase();
+  const generic = {
+    ok: true,
+    message: 'If that email is registered, a reset code has been sent to it.',
+  };
+  if (!EMAIL_RE.test(e)) return generic;
+  const user = _auth_lookupUserByEmail(e);
+  if (!user || user.status !== 'Active') return generic;
+
+  const code = _auth_genResetCode();
+  CacheService.getScriptCache().put(
+    _auth_resetKey(e),
+    JSON.stringify({ code: code, attempts: 0, expires: Date.now() + RESET_CODE_TTL_SECONDS * 1000 }),
+    RESET_CODE_TTL_SECONDS
+  );
+
+  const bodyHtml =
+    '<p>Dear ' + _esc(user.displayName || e) + ',</p>' +
+    '<p>A password reset was requested for your DAP ComBen account. Enter the code ' +
+    'below on the ComBen sign-in page to set a new password:</p>' +
+    '<p style="font-size:30px;font-weight:bold;letter-spacing:8px;color:#1C2790;' +
+    'text-align:center;margin:24px 0;">' + code + '</p>' +
+    '<p>This code expires in 15 minutes. If you did not request this, ignore this ' +
+    'email — your password has not changed.</p>';
+  MailApp.sendEmail({
+    to: user.email,
+    subject: '[ComBen] Password Reset Code',
+    htmlBody: renderDapEmailShell({
+      title: 'Password Reset',
+      bodyHtml: bodyHtml,
+      footerNote: 'This is an automated message from the DAP ComBen E-Payment System.',
+    }),
+    name: _emailConfig('comBenSenderName', 'DAP ComBen E-Payment System'),
+  });
+  return generic;
+}
+
+/**
+ * auth_reset_password — verify the emailed code, then set the new
+ * password. Audited PASSWORD_RESET.
+ */
+function auth_reset_password(email, code, newPassword) {
+  const e = String(email || '').trim().toLowerCase();
+  if (!EMAIL_RE.test(e)) throw new Error('VALIDATION: malformed email.');
+  if (!code) throw new Error('VALIDATION: reset code required.');
+  if (String(newPassword || '').length < MIN_PASSWORD_LEN) {
+    throw new Error('VALIDATION: new password must be at least ' + MIN_PASSWORD_LEN + ' characters.');
+  }
+  const cache = CacheService.getScriptCache();
+  const key = _auth_resetKey(e);
+  const raw = cache.get(key);
+  if (!raw) throw new Error('FORBIDDEN: reset code expired or not found. Request a new one.');
+
+  let rec = null;
+  try { rec = JSON.parse(raw); } catch (_x) { rec = null; }
+  if (!rec || Date.now() > rec.expires) {
+    cache.remove(key);
+    throw new Error('FORBIDDEN: reset code expired. Request a new one.');
+  }
+  if (rec.attempts >= RESET_MAX_ATTEMPTS) {
+    cache.remove(key);
+    throw new Error('FORBIDDEN: too many incorrect attempts. Request a new code.');
+  }
+  if (String(code).trim() !== rec.code) {
+    rec.attempts += 1;
+    cache.put(key, JSON.stringify(rec), RESET_CODE_TTL_SECONDS);
+    throw new Error('FORBIDDEN: incorrect reset code. ' +
+      (RESET_MAX_ATTEMPTS - rec.attempts) + ' attempt(s) left.');
+  }
+
+  resetUserPassword(e, newPassword);
+  cache.remove(key);
+  audit({
+    action: 'PASSWORD_RESET',
+    actor: e,
+    role: 'SYSTEM',
+    targetType: 'USER',
+    targetId: e,
+    note: 'Password reset via emailed code.',
+  });
+  return { ok: true, message: 'Password reset. You can now sign in with your new password.' };
+}

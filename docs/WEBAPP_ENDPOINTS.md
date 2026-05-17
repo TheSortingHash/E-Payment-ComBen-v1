@@ -783,6 +783,43 @@ Current session identity (for client hydration).
 
 ---
 
+### E.4 `auth_request_reset`
+
+Request a password-reset code. Always returns the same generic
+message — no account enumeration.
+
+| | |
+|---|---|
+| Role | public (pre-auth) |
+| Audit action | none |
+
+**Input:** `email` (positional)
+
+**Behavior:** if the email maps to an `Active` user, generate a
+6-digit code (15-minute TTL, single-use, max 5 verify attempts),
+cache it, and email it to the registered address via the DAP email
+shell.
+
+---
+
+### E.5 `auth_reset_password`
+
+Complete a password reset with the emailed code.
+
+| | |
+|---|---|
+| Role | public (pre-auth) |
+| Audit action | `PASSWORD_RESET` |
+
+**Input:** `email, code, newPassword` (positional)
+
+**Behavior:** verify the code (expiry + attempt cap), then write a
+fresh salt + SHA256 hash to `User_Database`. The `resetUserPassword`
+helper performs the same write and is editor-runnable for account
+recovery.
+
+---
+
 ## §F. HTTP routes (`doGet(e)`)
 
 Three uses only — everything else goes through `google.script.run`.

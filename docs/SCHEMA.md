@@ -383,6 +383,7 @@ strings.
 |---|---|
 | `LOGIN_SUCCESS` | User authenticates. |
 | `LOGIN_FAILURE` | Bad password / disabled user. |
+| `PASSWORD_RESET` | User completes a password reset via emailed code. |
 | `BATCH_CREATED` | Phase 1 commit. |
 | `BATCH_REVIEW_OPENED` | Phase 2 entry. |
 | `ROW_HELD` | Maker holds a row in Phase 2. |
