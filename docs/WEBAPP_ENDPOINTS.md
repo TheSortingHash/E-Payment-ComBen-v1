@@ -841,7 +841,7 @@ These run on time-driven triggers, not user requests.
 
 Runs every minute. Pulls up to `notificationTriggerRate` (default 50)
 rows from `Outbound_Email_Queue` with `Status=QUEUED`, sends each via
-`GmailApp`. On success: `Status=SENT`, `Sent_At`, row deleted.
+`MailApp`. On success: `Status=SENT`, `Sent_At`, row deleted.
 On failure: increment `Attempts`; after 3, `Status=FAILED`.
 
 When a batch's queue is fully drained:

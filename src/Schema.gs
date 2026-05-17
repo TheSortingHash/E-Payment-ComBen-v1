@@ -746,6 +746,10 @@ function onOpen() {
     .createMenu('ComBen Admin')
     .addItem('Run setupComBenSchema', '_menuSetupSchema')
     .addItem('Run verifyComBenSchema', '_menuVerifySchema')
+    .addSeparator()
+    .addItem('Install notification trigger', '_menuInstallNotifTrigger')
+    .addItem('Remove notification trigger', '_menuRemoveNotifTrigger')
+    .addItem('Drain notification queue now', '_menuDrainNotifQueue')
     .addToUi();
 }
 
