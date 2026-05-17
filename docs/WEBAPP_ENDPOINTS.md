@@ -486,12 +486,31 @@ Create a hold-release sub-batch.
 ```
 
 **Behavior:**
-1. Compute next sub-batch number: scan existing sub-batches under
-   parent; next `_NN` = max + 1, starting at `_02`.
+1. Compute next sub-batch number: scan existing sub-batches under the
+   parent; the second letter of the batch pair advances `B`, `C`,
+   `D`, … (SPEC §5.3 — 8-character format, no `_NN` suffix).
 2. Create new batch head row with that number.
 3. Move selected rows from parent JSON (`HOLD`) to new sub-batch JSON
    (`ACTIVE`). Update both SHA256s. Delete corresponding rows from
    `Held_Records_Open`.
+
+---
+
+### B.16 `accounting_confirm_receipt`
+
+Accounting (or Admin) records receipt of the Phase 9 handoff package;
+the batch reaches its terminal state.
+
+| | |
+|---|---|
+| Role | `Accounting`, `Admin` |
+| State precondition | `Status = Forwarded to Accounting` |
+| State postcondition | `Status = Closed`; `Closed_At` set |
+| Audit action | `BATCH_CLOSED` |
+
+**Input:** `{ "batch_no": "04AAPB26", "note": "..." }` (`note` optional)
+
+Implements the SPEC §1 Phase 9 "manual ack … status → `Closed`" step.
 
 ---
 

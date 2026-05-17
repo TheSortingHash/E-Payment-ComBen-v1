@@ -542,20 +542,23 @@ Records Paid:        372
 Total Disbursed:     PHP 12,345,678.90
 Records on Hold:     3 (₱126,400.00 — see hold report)
 
-Attached / Linked:
+Attached (files, not Drive links — same permission rationale as §7.1):
   • Original Payroll Upload (xlsx)
   • FINDES File (csv)
   • Credit Memo from Landbank (xlsx)
   • Annex H (pdf)
-  • Held Records Report (pdf)
-  • Supporting Documents (folder link)
+  • Held Records Report (pdf, if generated)
+  • Supporting Documents (all PDFs)
 
 This batch is forwarded for liquidation. Please confirm receipt.
 ```
 
 - Recipients: `Config.Accounting_Recipients` — currently `padillaj@`,
   `preciadosr@`, `baguim@dap.edu.ph`. Stored in Config, not hardcoded.
-- After send: batch status → `Forwarded to Accounting`.
+- After send: batch status → `Forwarded to Accounting`. A pre-send
+  size guard rejects packages over ~23 MB with an actionable error.
+- On Accounting's receipt confirmation (`accounting_confirm_receipt`,
+  WEBAPP_ENDPOINTS §B.16): batch status → `Closed` (terminal).
 
 ### 7.4 Admin alert — CM exceptions
 
