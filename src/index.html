@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>DAP ComBen E-Payment</title>
+  <style>
+    :root {
+      --navy: #1C2790;
+      --gold: #CDAE2C;
+      --ink: #2b2b33;
+      --line: #d9dce3;
+      --bg: #f1f3f7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      font-size: 14px;
+    }
+    a { color: var(--navy); }
+    button {
+      font-family: inherit; font-size: 14px; cursor: pointer;
+      border: 0; border-radius: 5px; padding: 9px 16px; font-weight: bold;
+    }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-primary { background: var(--navy); color: #fff; }
+    .btn-gold { background: var(--gold); color: var(--navy); }
+    .btn-ghost { background: #fff; color: var(--navy); border: 1px solid var(--line); }
+    input, select {
+      font-family: inherit; font-size: 14px; padding: 8px 10px;
+      border: 1px solid var(--line); border-radius: 5px; width: 100%;
+    }
+    label { display: block; font-weight: bold; margin: 12px 0 4px; font-size: 13px; }
+    .topbar {
+      background: var(--navy); color: #fff; padding: 12px 22px;
+      display: flex; align-items: center; gap: 14px;
+      border-bottom: 4px solid var(--gold);
+    }
+    .topbar img { height: 34px; }
+    .topbar .who { margin-left: auto; font-size: 13px; text-align: right; }
+    .wrap { max-width: 1100px; margin: 22px auto; padding: 0 18px; }
+    .card {
+      background: #fff; border: 1px solid var(--line); border-radius: 8px;
+      padding: 22px; margin-bottom: 18px;
+    }
+    h1 { font-size: 20px; color: var(--navy); margin: 0 0 4px; }
+    h2 { font-size: 16px; color: var(--navy); margin: 0 0 12px; }
+    .muted { color: #6b7280; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; font-size: 13px; }
+    th { background: #eef0f6; color: var(--navy); }
+    tr.clickable:hover { background: #f6f7fb; cursor: pointer; }
+    .right { text-align: right; }
+    .badge {
+      display: inline-block; padding: 3px 9px; border-radius: 11px;
+      font-size: 11px; font-weight: bold; white-space: nowrap;
+    }
+    .row-flex { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+    .login-wrap {
+      max-width: 380px; margin: 60px auto; text-align: center;
+    }
+    .login-wrap .logobar {
+      background: var(--navy); border-bottom: 4px solid var(--gold);
+      padding: 22px; border-radius: 8px 8px 0 0;
+    }
+    .login-wrap .logobar img { height: 48px; }
+    .login-body { background: #fff; border: 1px solid var(--line); border-top: 0;
+      border-radius: 0 0 8px 8px; padding: 24px; text-align: left; }
+    #toast {
+      position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px;
+      max-width: 560px; padding: 12px 18px; border-radius: 6px; color: #fff;
+      font-size: 13px; display: none; z-index: 50; box-shadow: 0 3px 12px rgba(0,0,0,.25);
+    }
+    #toast.ok { background: #1e7d34; }
+    #toast.err { background: #b3261e; }
+    .err-box { background: #fce8e6; border: 1px solid #b3261e; color: #842029;
+      padding: 9px 12px; border-radius: 5px; font-size: 13px; margin-top: 10px; }
+    .spin { color: var(--muted); font-style: italic; }
+    .actionpanel { background: #f8f9fc; border: 1px dashed var(--line);
+      border-radius: 6px; padding: 16px; margin-top: 14px; }
+  </style>
+</head>
+<body>
+  <div id="app"><div class="wrap"><div class="card spin">Loading…</div></div></div>
+  <div id="toast"></div>
+
+  <script>
+    var LOGO = 'https://i.imgur.com/jaEbfAR.png';
+    var STATE = { session: null, payrollTypes: [], currentYy: '', currentMm: '' };
+
+    /* ---- server bridge -------------------------------------------------- */
+    function call(fn) {
+      var args = Array.prototype.slice.call(arguments, 1);
+      return new Promise(function (resolve, reject) {
+        var runner = google.script.run
+          .withSuccessHandler(resolve)
+          .withFailureHandler(function (err) {
+            reject(new Error(err && err.message ? err.message : String(err)));
+          });
+        runner[fn].apply(runner, args);
+      });
+    }
+
+    /* ---- helpers -------------------------------------------------------- */
+    function esc(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function peso(n) {
+      var v = Number(n);
+      if (!isFinite(v)) return '0.00';
+      return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function toast(msg, isErr) {
+      var t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = isErr ? 'err' : 'ok';
+      t.style.display = 'block';
+      setTimeout(function () { t.style.display = 'none'; }, isErr ? 7000 : 4000);
+    }
+    function statusColor(s) {
+      if (s === 'Closed') return ['#e6f4ea', '#1e7d34'];
+      if (s === 'Failed - Bank Mismatch' || s === 'Cancelled') return ['#fce8e6', '#b3261e'];
+      if (s === 'Draft') return ['#eceef3', '#444'];
+      if (s === 'Partially Released - Hold Pending') return ['#fef7e0', '#8a6d00'];
+      return ['#e8eaf6', '#1C2790'];
+    }
+    function badge(s) {
+      var c = statusColor(s);
+      return '<span class="badge" style="background:' + c[0] + ';color:' + c[1] + '">' +
+        esc(s) + '</span>';
+    }
+    function el(id) { return document.getElementById(id); }
+    function readFileB64(file) {
+      return new Promise(function (resolve, reject) {
+        var r = new FileReader();
+        r.onload = function () {
+          var res = r.result;
+          resolve(res.substring(res.indexOf(',') + 1));
+        };
+        r.onerror = function () { reject(new Error('Could not read ' + file.name)); };
+        r.readAsDataURL(file);
+      });
+    }
+    function uploadFile(file) {
+      return readFileB64(file).then(function (b64) {
+        return call('upload_temp_file', { name: file.name, mime: file.type, b64: b64 });
+      }).then(function (r) { return r.file_id; });
+    }
+    function driveLink(id) { return 'https://drive.google.com/file/d/' + id + '/view'; }
+
+    /* ---- top bar -------------------------------------------------------- */
+    function topbar() {
+      return '<div class="topbar">' +
+        '<img src="' + LOGO + '" alt="DAP">' +
+        '<strong>ComBen E-Payment</strong>' +
+        '<div class="who">' + esc(STATE.session.display_name || STATE.session.email) +
+        ' &middot; ' + esc(STATE.session.role) +
+        ' &nbsp; <a href="#" id="logoutLink" style="color:#CDAE2C">Log out</a></div>' +
+        '</div>';
+    }
+    function wireLogout() {
+      var l = el('logoutLink');
+      if (l) l.addEventListener('click', function (e) {
+        e.preventDefault();
+        call('authLogout').then(function () {
+          STATE.session = null;
+          showLogin();
+        });
+      });
+    }
+
+    /* ---- login ---------------------------------------------------------- */
+    function showLogin() {
+      el('app').innerHTML =
+        '<div class="login-wrap">' +
+          '<div class="logobar"><img src="' + LOGO + '" alt="DAP"></div>' +
+          '<div class="login-body">' +
+            '<h1>Sign in</h1>' +
+            '<p class="muted">Compensation &amp; Benefits E-Payment System</p>' +
+            '<label>DAP email</label><input id="liEmail" type="email" autocomplete="username">' +
+            '<label>Password</label><input id="liPass" type="password" autocomplete="current-password">' +
+            '<div style="margin-top:16px"><button class="btn-primary" id="liBtn" style="width:100%">Sign in</button></div>' +
+            '<div id="liErr"></div>' +
+          '</div>' +
+        '</div>';
+      el('liBtn').addEventListener('click', doLogin);
+      el('liPass').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') doLogin();
+      });
+    }
+    function doLogin() {
+      var email = el('liEmail').value.trim();
+      var pass = el('liPass').value;
+      var btn = el('liBtn');
+      el('liErr').innerHTML = '';
+      btn.disabled = true; btn.textContent = 'Signing in…';
+      call('authLogin', email, pass).then(function (s) {
+        STATE.session = s;
+        showDashboard();
+      }).catch(function (e) {
+        btn.disabled = false; btn.textContent = 'Sign in';
+        el('liErr').innerHTML = '<div class="err-box">' + esc(e.message) + '</div>';
+      });
+    }
+
+    /* ---- dashboard ------------------------------------------------------ */
+    function showDashboard() {
+      el('app').innerHTML = topbar() +
+        '<div class="wrap">' +
+          '<div class="row-flex" style="margin-bottom:14px">' +
+            '<h1 style="margin:0">Payroll Batches</h1>' +
+            '<button class="btn-gold" id="newBatchBtn" style="margin-left:auto">+ New Batch</button>' +
+          '</div>' +
+          '<div class="card" id="batchListCard"><div class="spin">Loading batches…</div></div>' +
+        '</div>';
+      wireLogout();
+      el('newBatchBtn').addEventListener('click', showNewBatch);
+      call('batch_list', {}).then(renderBatchList).catch(function (e) {
+        el('batchListCard').innerHTML = '<div class="err-box">' + esc(e.message) + '</div>';
+      });
+    }
+    function renderBatchList(data) {
+      var c = el('batchListCard');
+      if (!data.batches.length) {
+        c.innerHTML = '<p class="muted">No batches yet for ' + esc(data.year) +
+          '. Click <strong>+ New Batch</strong> to create one.</p>';
+        return;
+      }
+      var rows = data.batches.map(function (b) {
+        return '<tr class="clickable" data-bn="' + esc(b.batch_no) + '">' +
+          '<td><strong>' + esc(b.batch_no) + '</strong></td>' +
+          '<td>' + esc(b.payroll_type) + '</td>' +
+          '<td>' + esc(b.period_covered) + '</td>' +
+          '<td>' + badge(b.status) + '</td>' +
+          '<td class="right">' + (b.active_count || 0) + '</td>' +
+          '<td class="right">' + peso(b.total_released) + '</td>' +
+          '</tr>';
+      }).join('');
+      c.innerHTML = '<table><thead><tr><th>Batch No.</th><th>Payroll Type</th>' +
+        '<th>Period</th><th>Status</th><th class="right">Active</th>' +
+        '<th class="right">Total Released</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      Array.prototype.forEach.call(c.querySelectorAll('tr.clickable'), function (tr) {
+        tr.addEventListener('click', function () { showBatchDetail(tr.getAttribute('data-bn')); });
+      });
+    }
+
+    /* ---- new batch ------------------------------------------------------ */
+    function showNewBatch() {
+      var opts = STATE.payrollTypes.map(function (p) {
+        return '<option value="' + esc(p.name) + '">' + esc(p.name) + ' (' + esc(p.code) + ')</option>';
+      }).join('');
+      el('app').innerHTML = topbar() +
+        '<div class="wrap"><div class="card">' +
+          '<a href="#" id="backLink">&larr; Back to batches</a>' +
+          '<h1 style="margin-top:10px">New Payroll Batch</h1>' +
+          '<label>Payroll Type</label><select id="nbType">' + opts + '</select>' +
+          '<label>Period Covered</label>' +
+          '<input id="nbPeriod" placeholder="e.g. May 1-15, 2026">' +
+          '<div class="grid2">' +
+            '<div><label>Month (MM)</label><input id="nbMonth" value="' + esc(STATE.currentMm) + '"></div>' +
+            '<div><label>Year (YY)</label><input id="nbYear" value="' + esc(STATE.currentYy) + '"></div>' +
+          '</div>' +
+          '<label>Batch letter pair (optional — auto-suggested if blank)</label>' +
+          '<input id="nbLetters" placeholder="e.g. AA" maxlength="2">' +
+          '<label>Payroll file (3-column xlsx)</label>' +
+          '<input id="nbPayroll" type="file" accept=".xlsx">' +
+          '<label>Supporting documents (PDF, one or more)</label>' +
+          '<input id="nbDocs" type="file" accept=".pdf" multiple>' +
+          '<div style="margin-top:18px"><button class="btn-primary" id="nbBtn">Create Batch</button></div>' +
+          '<div id="nbErr"></div>' +
+        '</div></div>';
+      wireLogout();
+      el('backLink').addEventListener('click', function (e) { e.preventDefault(); showDashboard(); });
+      el('nbBtn').addEventListener('click', submitNewBatch);
+    }
+    function submitNewBatch() {
+      var btn = el('nbBtn');
+      var payrollInput = el('nbPayroll');
+      el('nbErr').innerHTML = '';
+      if (!payrollInput.files.length) {
+        el('nbErr').innerHTML = '<div class="err-box">Select the payroll xlsx file.</div>';
+        return;
+      }
+      btn.disabled = true; btn.textContent = 'Uploading…';
+      var docInputs = el('nbDocs').files;
+      var supportingIds = [];
+      uploadFile(payrollInput.files[0]).then(function (payrollId) {
+        var chain = Promise.resolve();
+        Array.prototype.forEach.call(docInputs, function (f) {
+          chain = chain.then(function () {
+            return uploadFile(f).then(function (id) { supportingIds.push(id); });
+          });
+        });
+        return chain.then(function () {
+          btn.textContent = 'Creating batch…';
+          return call('batch_create', {
+            payroll_type: el('nbType').value,
+            period_covered: el('nbPeriod').value.trim(),
+            month_mm: el('nbMonth').value.trim(),
+            year_yy: el('nbYear').value.trim(),
+            batch_letter_pair: el('nbLetters').value.trim().toUpperCase(),
+            payroll_file_id: payrollId,
+            supporting_doc_ids: supportingIds
+          });
+        });
+      }).then(function (res) {
+        toast('Batch ' + res.batch_no + ' created (' + res.line_items_count +
+          ' rows, ' + res.errors_count + ' error(s)).');
+        showBatchDetail(res.batch_no);
+      }).catch(function (e) {
+        btn.disabled = false; btn.textContent = 'Create Batch';
+        el('nbErr').innerHTML = '<div class="err-box">' + esc(e.message) + '</div>';
+      });
+    }
+
+    /* ---- batch detail --------------------------------------------------- */
+    function showBatchDetail(batchNo) {
+      el('app').innerHTML = topbar() +
+        '<div class="wrap"><div class="card" id="bdCard"><div class="spin">Loading ' +
+        esc(batchNo) + '…</div></div></div>';
+      wireLogout();
+      reloadBatch(batchNo);
+    }
+    function reloadBatch(batchNo) {
+      call('batch_get_review', { batch_no: batchNo })
+        .then(renderBatchDetail)
+        .catch(function (e) {
+          el('bdCard').innerHTML = '<a href="#" id="backLink">&larr; Back</a>' +
+            '<div class="err-box">' + esc(e.message) + '</div>';
+          var b = el('backLink');
+          if (b) b.addEventListener('click', function (ev) { ev.preventDefault(); showDashboard(); });
+        });
+    }
+    function renderBatchDetail(d) {
+      var b = d.batch, s = d.summary;
+      var html = '<a href="#" id="backLink">&larr; Back to batches</a>' +
+        '<div class="row-flex" style="margin-top:10px">' +
+          '<h1 style="margin:0">' + esc(b.Batch_No) + '</h1>' + badge(b.Status) +
+        '</div>' +
+        '<p class="muted">' + esc(b.Payroll_Type) + ' &middot; ' +
+          esc(b.Period_Covered || 'no period') + '</p>' +
+        '<div class="grid2" style="margin-top:8px">' +
+          '<div>Active: <strong>' + s.active + '</strong> &middot; Hold: <strong>' +
+            s.hold + '</strong> &middot; Total rows: ' + s.total + '</div>' +
+          '<div>Computed total: <strong>PHP ' + peso(s.computed_total) + '</strong></div>' +
+        '</div>' +
+        '<div id="actionPanel"></div>' +
+        '<h2 style="margin-top:20px">Records</h2>' +
+        renderReviewTable(d.rows, b, d.ui_capabilities);
+      el('bdCard').innerHTML = html;
+      el('backLink').addEventListener('click', function (e) { e.preventDefault(); showDashboard(); });
+      renderActionPanel(b, s);
+      wireRowActions(b);
+    }
+    function renderReviewTable(rows, b, caps) {
+      var canHold = caps && caps.hold_allowed;
+      var head = '<table><thead><tr><th>#</th><th>HRIS ID</th><th>Name (file)</th>' +
+        '<th>Name (master)</th><th>Match</th><th class="right">Amount</th>' +
+        '<th>Status</th><th>Bank</th><th>Notif</th>' + (canHold ? '<th>Action</th>' : '') +
+        '</tr></thead><tbody>';
+      var body = rows.map(function (r) {
+        var act = '';
+        if (canHold) {
+          act = r.status === 'HOLD'
+            ? '<td><button class="btn-ghost rowUnhold" data-i="' + r.row_index + '">Unhold</button></td>'
+            : (r.status === 'ACTIVE'
+                ? '<td><button class="btn-ghost rowHold" data-i="' + r.row_index + '">Hold</button></td>'
+                : '<td></td>');
+        }
+        return '<tr>' +
+          '<td>' + (r.row_index + 1) + '</td>' +
+          '<td>' + esc(r.hris_id) + '</td>' +
+          '<td>' + esc(r.hris_name_file) + '</td>' +
+          '<td>' + esc(r.hris_name_master) + '</td>' +
+          '<td>' + (r.name_match ? '&#10003;' : '<span style="color:#b3261e">&#9888;</span>') + '</td>' +
+          '<td class="right">' + peso(r.amount_php) + '</td>' +
+          '<td>' + esc(r.status) + '</td>' +
+          '<td>' + esc(r.bank_status || '—') + '</td>' +
+          '<td>' + esc(r.notification_status || '—') + '</td>' +
+          act + '</tr>';
+      }).join('');
+      return head + body + '</tbody></table>';
+    }
+    function wireRowActions(b) {
+      Array.prototype.forEach.call(document.querySelectorAll('.rowHold'), function (btn) {
+        btn.addEventListener('click', function () {
+          var reason = prompt('Hold reason for row ' + (Number(btn.getAttribute('data-i')) + 1) + ':');
+          if (reason == null || reason.trim() === '') return;
+          doAction('row_hold', { batch_no: b.Batch_No, row_index: Number(btn.getAttribute('data-i')),
+            hold_reason: reason.trim() }, b.Batch_No, 'Row held.');
+        });
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('.rowUnhold'), function (btn) {
+        btn.addEventListener('click', function () {
+          doAction('row_unhold', { batch_no: b.Batch_No, row_index: Number(btn.getAttribute('data-i')) },
+            b.Batch_No, 'Row released from hold.');
+        });
+      });
+    }
+
+    /* ---- action panel (status-driven) ----------------------------------- */
+    function doAction(fn, args, batchNo, okMsg) {
+      toast('Working…');
+      call(fn, args).then(function () {
+        toast(okMsg || 'Done.');
+        reloadBatch(batchNo);
+      }).catch(function (e) { toast(e.message, true); });
+    }
+    function renderActionPanel(b, s) {
+      var p = el('actionPanel');
+      var st = b.Status, h = '';
+      if (st === 'Draft') {
+        h = '<div class="actionpanel"><h2>Submit for approval</h2>' +
+          '<p class="muted">Generates the FINDES file and emails the authorizers. ' +
+          'Enter the declared total to confirm it matches PHP ' + peso(s.computed_total) + '.</p>' +
+          '<div class="row-flex"><input id="apDeclared" style="max-width:200px" ' +
+          'placeholder="Declared total" value="' + s.computed_total + '">' +
+          '<button class="btn-primary" id="apSubmit">Submit for Approval</button></div></div>';
+      } else if (st === 'Pending Approval') {
+        h = '<div class="actionpanel"><h2>Phase 5 — WeAccess</h2>' +
+          '<p class="muted">Download the FINDES file, upload it to WeAccess, then mark it done here.</p>' +
+          '<div class="row-flex">' +
+          (b.FINDES_File_ID ? '<a class="btn-ghost" href="' + driveLink(b.FINDES_File_ID) +
+            '" target="_blank" style="text-decoration:none;display:inline-block">Open FINDES file</a>' : '') +
+          '<button class="btn-ghost" id="apRegen">Regenerate FINDES</button>' +
+          '<button class="btn-primary" id="apWeaccess">Mark Uploaded to WeAccess</button>' +
+          '</div></div>';
+      } else if (st === 'Bank Processing') {
+        h = '<div class="actionpanel"><h2>Phase 6 — Credit Memo</h2>' +
+          (b.CM_File_ID
+            ? '<p class="muted">CM uploaded (TRN ' + esc(b.CM_TRN || '?') + '). Review the match table below.</p>'
+            : '<p class="muted">Upload the Landbank Credit Memo xlsx to cross-reference payments.</p>' +
+              '<input id="apCmFile" type="file" accept=".xlsx" style="max-width:340px">' +
+              '<button class="btn-primary" id="apCmUpload" style="margin-top:8px">Upload Credit Memo</button>') +
+          '<div id="cmArea"></div></div>';
+      } else if (st === 'Bank-Confirmed') {
+        h = '<div class="actionpanel"><h2>Phase 7 — Notifications</h2>' +
+          '<p class="muted">Payee notifications are queued. They send automatically every minute ' +
+          'once the notification trigger is installed (ComBen Admin menu). The batch advances to ' +
+          'Notifications Sent when the queue drains.</p></div>';
+      } else if (st === 'Notifications Sent') {
+        h = '<div class="actionpanel"><h2>Phase 8 — Annex H</h2>' +
+          '<p class="muted">Generate the COA Annex H PDF from the bank-confirmed records.</p>' +
+          '<button class="btn-primary" id="apAnnexH">Generate Annex H</button></div>';
+      } else if (st === 'Annex H Generated') {
+        h = '<div class="actionpanel"><h2>Phase 9 — Accounting handoff</h2>' +
+          '<div class="row-flex">' +
+          (b.Annex_H_File_ID ? '<a class="btn-ghost" href="' + driveLink(b.Annex_H_File_ID) +
+            '" target="_blank" style="text-decoration:none;display:inline-block">Open Annex H</a>' : '') +
+          '<button class="btn-primary" id="apHandoff">Send to Accounting</button></div></div>';
+      } else if (st === 'Forwarded to Accounting') {
+        h = '<div class="actionpanel"><h2>Confirm receipt</h2>' +
+          '<p class="muted">Accounting confirms receipt of the liquidation package to close the batch.</p>' +
+          '<button class="btn-primary" id="apReceipt">Confirm Receipt &amp; Close</button></div>';
+      } else if (st === 'Closed') {
+        h = '<div class="actionpanel"><strong>This batch is closed.</strong> ' +
+          (b.Closed_At ? '<span class="muted">Closed ' + esc(b.Closed_At) + '</span>' : '') + '</div>';
+      }
+      p.innerHTML = h;
+      wirePanel(b);
+    }
+    function wirePanel(b) {
+      var bn = b.Batch_No;
+      var bind = function (id, handler) { var x = el(id); if (x) x.addEventListener('click', handler); };
+      bind('apSubmit', function () {
+        var dec = el('apDeclared').value.trim();
+        if (dec === '') { toast('Enter the declared total.', true); return; }
+        doAction('batch_submit', { batch_no: bn, declared_total_php: Number(dec) }, bn,
+          'Submitted — FINDES generated, authorizers emailed.');
+      });
+      bind('apRegen', function () {
+        doAction('findes_regenerate', { batch_no: bn }, bn, 'FINDES regenerated.');
+      });
+      bind('apWeaccess', function () {
+        var note = prompt('WeAccess note (optional):') || '';
+        doAction('weaccess_mark_uploaded', { batch_no: bn, weaccess_note: note }, bn,
+          'Marked uploaded to WeAccess.');
+      });
+      bind('apCmUpload', function () {
+        var f = el('apCmFile');
+        if (!f.files.length) { toast('Choose the Credit Memo xlsx.', true); return; }
+        toast('Uploading Credit Memo…');
+        uploadFile(f.files[0]).then(function (id) {
+          return call('cm_upload', { batch_no: bn, cm_blob_id: id });
+        }).then(function () {
+          toast('Credit Memo uploaded.');
+          reloadBatch(bn);
+        }).catch(function (e) { toast(e.message, true); });
+      });
+      bind('apAnnexH', function () {
+        doAction('annex_h_generate', { batch_no: bn }, bn, 'Annex H generated.');
+      });
+      bind('apHandoff', function () {
+        doAction('accounting_handoff', { batch_no: bn }, bn, 'Liquidation package sent to Accounting.');
+      });
+      bind('apReceipt', function () {
+        doAction('accounting_confirm_receipt', { batch_no: bn }, bn, 'Batch closed.');
+      });
+      if (b.Status === 'Bank Processing' && b.CM_File_ID) loadCmTable(bn);
+    }
+
+    /* ---- CM match table ------------------------------------------------- */
+    function loadCmTable(bn) {
+      var area = el('cmArea');
+      if (!area) return;
+      area.innerHTML = '<div class="spin">Loading match table…</div>';
+      call('cm_get_match_table', { batch_no: bn }).then(function (m) {
+        renderCmTable(bn, m);
+      }).catch(function (e) {
+        area.innerHTML = '<div class="err-box">' + esc(e.message) + '</div>';
+      });
+    }
+    function renderCmTable(bn, m) {
+      var sum = m.summary;
+      var rows = m.rows.map(function (r) {
+        var exc = (r.match === 'NOT_IN_CM' || r.match === 'AMOUNT_MISMATCH');
+        var act = '';
+        if (exc && !r.ack && r.row_index != null) {
+          act = '<button class="btn-ghost cmAck" data-i="' + r.row_index +
+            '" data-k="' + esc(r.match) + '">Acknowledge</button>';
+        } else if (r.ack) {
+          act = '<span class="muted">ack&#10003;</span>';
+        }
+        var color = r.match === 'MATCHED' ? '#1e7d34' : (exc ? '#b3261e' : '#8a6d00');
+        return '<tr>' +
+          '<td>' + esc(r.hris_id || '—') + '</td>' +
+          '<td>' + esc(r.hris_name || '—') + '</td>' +
+          '<td class="right">' + (r.batch_amount != null ? peso(r.batch_amount) : '—') + '</td>' +
+          '<td class="right">' + (r.cm_amount != null ? peso(r.cm_amount) : '—') + '</td>' +
+          '<td style="color:' + color + ';font-weight:bold">' + esc(r.match) + '</td>' +
+          '<td>' + act + '</td></tr>';
+      }).join('');
+      el('cmArea').innerHTML =
+        '<p style="margin-top:12px"><strong>Matched ' + sum.matched + '</strong> &middot; ' +
+        'Not in CM ' + sum.not_in_cm + ' &middot; Amount mismatch ' + sum.amount_mismatches +
+        ' &middot; Extra in CM ' + sum.extra_in_cm + '</p>' +
+        '<table><thead><tr><th>HRIS</th><th>Name</th><th class="right">Batch Amt</th>' +
+        '<th class="right">CM Amt</th><th>Match</th><th>Action</th></tr></thead><tbody>' +
+        rows + '</tbody></table>' +
+        '<div style="margin-top:12px"><button class="btn-primary" id="cmConfirm">' +
+        'Confirm Bank Reconciliation</button></div>';
+      Array.prototype.forEach.call(document.querySelectorAll('.cmAck'), function (btn) {
+        btn.addEventListener('click', function () {
+          var note = prompt('Justification for this exception:');
+          if (note == null || note.trim() === '') return;
+          call('cm_ack_exception', { batch_no: bn, row_index: Number(btn.getAttribute('data-i')),
+            match_kind: btn.getAttribute('data-k'), note: note.trim() })
+            .then(function () { toast('Exception acknowledged.'); loadCmTable(bn); })
+            .catch(function (e) { toast(e.message, true); });
+        });
+      });
+      el('cmConfirm').addEventListener('click', function () {
+        doAction('cm_confirm', { batch_no: bn }, bn, 'Bank reconciliation confirmed.');
+      });
+    }
+
+    /* ---- boot ----------------------------------------------------------- */
+    window.addEventListener('load', function () {
+      call('web_bootstrap').then(function (boot) {
+        STATE.payrollTypes = boot.payroll_types || [];
+        STATE.currentYy = boot.current_yy;
+        STATE.currentMm = boot.current_mm;
+        if (boot.session) {
+          STATE.session = boot.session;
+          showDashboard();
+        } else {
+          showLogin();
+        }
+      }).catch(function () { showLogin(); });
+    });
+  </script>
+</body>
+</html>
