@@ -43,7 +43,14 @@ function _mpbFindRow(sheet, batchNo) {
 function _mpbRowToObject(values) {
   const obj = {};
   Object.keys(_MPB_COL).forEach(function (k) {
-    obj[k] = values[_MPB_COL[k] - 1];
+    let v = values[_MPB_COL[k] - 1];
+    // Datetime-formatted cells read back as Date objects. google.script.run
+    // cannot serialize a Date in a return value — the client's success
+    // handler would receive null — so stringify them here.
+    if (Object.prototype.toString.call(v) === '[object Date]') {
+      v = Utilities.formatDate(v, TZ, 'yyyy-MM-dd HH:mm:ss');
+    }
+    obj[k] = v;
   });
   return obj;
 }
