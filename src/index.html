@@ -156,23 +156,26 @@
 
     /* ---- top bar -------------------------------------------------------- */
     function topbar() {
+      var adminLink = STATE.session.role === 'Admin'
+        ? '<a href="#" id="adminLink" style="color:#CDAE2C">Admin</a> &middot; ' : '';
       return '<div class="topbar">' +
         '<img src="' + LOGO + '" alt="DAP">' +
-        '<strong>ComBen E-Payment</strong>' +
+        '<a href="#" id="homeLink" style="color:#fff;text-decoration:none"><strong>ComBen E-Payment</strong></a>' +
         '<div class="who">' + esc(STATE.session.display_name || STATE.session.email) +
-        ' &middot; ' + esc(STATE.session.role) +
-        ' &nbsp; <a href="#" id="logoutLink" style="color:#CDAE2C">Log out</a></div>' +
+        ' &middot; ' + esc(STATE.session.role) + ' &nbsp; ' + adminLink +
+        '<a href="#" id="logoutLink" style="color:#CDAE2C">Log out</a></div>' +
         '</div>';
     }
     function wireLogout() {
-      var l = el('logoutLink');
-      if (l) l.addEventListener('click', function (e) {
+      var lo = el('logoutLink');
+      if (lo) lo.addEventListener('click', function (e) {
         e.preventDefault();
-        call('authLogout').then(function () {
-          STATE.session = null;
-          showLogin();
-        });
+        call('authLogout').then(function () { STATE.session = null; showLogin(); });
       });
+      var home = el('homeLink');
+      if (home) home.addEventListener('click', function (e) { e.preventDefault(); showDashboard(); });
+      var adm = el('adminLink');
+      if (adm) adm.addEventListener('click', function (e) { e.preventDefault(); showAdmin(); });
     }
 
     /* ---- login ---------------------------------------------------------- */
@@ -311,6 +314,93 @@
         '<th class="right">Total Released</th></tr></thead><tbody>' + rows + '</tbody></table>';
       Array.prototype.forEach.call(c.querySelectorAll('tr.clickable'), function (tr) {
         tr.addEventListener('click', function () { showBatchDetail(tr.getAttribute('data-bn')); });
+      });
+    }
+
+    /* ---- admin ---------------------------------------------------------- */
+    function showAdmin() {
+      el('app').innerHTML = topbar() +
+        '<div class="wrap">' +
+          '<h1>Admin</h1>' +
+          '<div class="card"><h2>System Health</h2>' +
+            '<div id="healthArea" class="spin">Loading…</div></div>' +
+          '<div class="card"><h2>Audit Log</h2>' +
+            '<div class="row-flex">' +
+              '<input id="aqAction" placeholder="Action (e.g. BATCH_SUBMITTED)" style="max-width:240px">' +
+              '<input id="aqActor" placeholder="Actor email" style="max-width:220px">' +
+              '<input id="aqTarget" placeholder="Target (batch no.)" style="max-width:190px">' +
+              '<button class="btn-primary" id="aqRun">Search</button>' +
+            '</div>' +
+            '<div id="auditArea"></div>' +
+          '</div>' +
+        '</div>';
+      wireLogout();
+      el('aqRun').addEventListener('click', runAuditQuery);
+      loadHealth();
+      runAuditQuery();
+    }
+    function healthRow(label, val) {
+      var warn = Number(val) > 0;
+      return '<tr><td>' + esc(label) + '</td><td class="right" style="font-weight:bold;color:' +
+        (warn ? '#b3261e' : '#1e7d34') + '">' + val + '</td></tr>';
+    }
+    function loadHealth() {
+      call('health_summary').then(function (h) {
+        var lz = h.leading_zero_anomalies;
+        var anomalies = Number(lz.landbank_account) + Number(lz.hris_id);
+        el('healthArea').innerHTML =
+          '<table><tbody>' +
+          healthRow('Leading-zero anomalies — Landbank Account', lz.landbank_account) +
+          healthRow('Leading-zero anomalies — HRIS Number', lz.hris_id) +
+          healthRow('Notification queue depth', h.queue_depth) +
+          healthRow('Failed notifications', h.failed_notifications) +
+          healthRow('Integrity violations (last 7 days)', h.integrity_violations_last_7_days) +
+          healthRow('Open holds', h.open_holds) +
+          healthRow('Open enrollment requests', h.open_enrollment_requests) +
+          '</tbody></table>' +
+          (anomalies > 0
+            ? '<div style="margin-top:12px"><button class="btn-gold" id="healBtn">' +
+              'Heal leading-zero anomalies</button></div>'
+            : '<p class="muted" style="margin-top:10px">No leading-zero anomalies in Payee_Database.</p>');
+        var hb = el('healBtn');
+        if (hb) hb.addEventListener('click', function () {
+          if (!confirm('Rewrite all anomalous account / HRIS cells in Payee_Database as padded text?')) return;
+          hb.disabled = true; hb.textContent = 'Healing…';
+          call('health_heal_leading_zeros').then(function (r) {
+            toast('Healed ' + r.healed_accounts + ' account(s) and ' + r.healed_hris + ' HRIS value(s).');
+            loadHealth();
+          }).catch(function (e) {
+            toast(e.message, true);
+            hb.disabled = false; hb.textContent = 'Heal leading-zero anomalies';
+          });
+        });
+      }).catch(function (e) {
+        el('healthArea').innerHTML = '<div class="err-box">' + esc(e.message) + '</div>';
+      });
+    }
+    function runAuditQuery() {
+      el('auditArea').innerHTML = '<div class="spin">Loading…</div>';
+      call('audit_query', {
+        action: el('aqAction').value.trim(),
+        actor_email: el('aqActor').value.trim(),
+        target_id: el('aqTarget').value.trim()
+      }).then(function (q) {
+        if (!q.rows.length) {
+          el('auditArea').innerHTML = '<p class="muted">No matching events.</p>';
+          return;
+        }
+        var rows = q.rows.map(function (r) {
+          return '<tr><td>' + esc(r.timestamp) + '</td><td>' + esc(r.actor) + '</td>' +
+            '<td>' + esc(r.action) + '</td><td>' + esc(r.target_id) + '</td>' +
+            '<td>' + esc(r.note) + '</td></tr>';
+        }).join('');
+        el('auditArea').innerHTML =
+          '<table><thead><tr><th>Time</th><th>Actor</th><th>Action</th>' +
+          '<th>Target</th><th>Note</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+          '<p class="muted">' + q.rows.length + ' event(s)' +
+          (q.rows.length >= 200 ? ' — showing newest 200' : '') + '.</p>';
+      }).catch(function (e) {
+        el('auditArea').innerHTML = '<div class="err-box">' + esc(e.message) + '</div>';
       });
     }
 
@@ -526,6 +616,11 @@
         h = '<div class="actionpanel"><strong>This batch is closed.</strong> ' +
           (b.Closed_At ? '<span class="muted">Closed ' + esc(b.Closed_At) + '</span>' : '') + '</div>';
       }
+      if (STATE.session.role === 'Admin' && (st === 'Draft' || st === 'Pending Approval')) {
+        h += '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #d9dce3">' +
+          '<button class="btn-ghost" id="apCancel" style="color:#b3261e;border-color:#b3261e">' +
+          'Cancel this batch</button></div>';
+      }
       p.innerHTML = h;
       wirePanel(b);
     }
@@ -565,6 +660,11 @@
       });
       bind('apReceipt', function () {
         doAction('accounting_confirm_receipt', { batch_no: bn }, bn, 'Batch closed.');
+      });
+      bind('apCancel', function () {
+        var reason = prompt('Reason for cancelling this batch:');
+        if (reason == null || reason.trim() === '') return;
+        doAction('batch_cancel', { batch_no: bn, reason: reason.trim() }, bn, 'Batch cancelled.');
       });
       if (b.Status === 'Bank Processing' && b.CM_File_ID) loadCmTable(bn);
     }

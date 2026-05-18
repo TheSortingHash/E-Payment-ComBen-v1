@@ -690,16 +690,22 @@ Return Admin health-panel data.
 
 ---
 
-### D.4 `health_heal_leading_zero`
+### D.4 `health_heal_leading_zeros`
 
-Heal a single leading-zero anomaly via bridge.
+Rewrite every leading-zero anomaly in `Payee_Database` as padded text.
+v1 form: a single bulk pass over the whole sheet rather than the
+per-row `{ hris_id, field }` heal originally specified — the local
+mirror has no Treasury bridge, so one pass is the practical
+equivalent.
 
 | | |
 |---|---|
 | Role | `Admin` |
 | Audit action | `HEAL_LEADING_ZERO` |
 
-**Input:** `{ "hris_id": "205816", "field": "landbank_account" | "hris_number" }`
+**Input:** none
+
+**Output `data`:** `{ "healed_accounts": <n>, "healed_hris": <n> }`
 
 ---
 
