@@ -105,10 +105,10 @@ function lineItemsWrite(batchNo, lineItemsArray, ss) {
       file = DriveApp.getFileById(head.Line_Items_File_ID);
       file.setContent(json);
     } catch (_e) {
-      file = folder.createFile(filename, json, MimeType.JSON);
+      file = folder.createFile(filename, json, 'application/json');
     }
   } else {
-    file = folder.createFile(filename, json, MimeType.JSON);
+    file = folder.createFile(filename, json, 'application/json');
   }
 
   batchHeadUpdate(batchNo, {
